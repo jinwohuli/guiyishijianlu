@@ -1,0 +1,2294 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>全球灵异事件探索平台</title>
+<script src="https://modao.cc/agent-py/static/source/js/tailwindcss.3.4.3.js"></script>
+<script src="https://modao.cc/agent-py/static/source/js/iconify-icon.min.1.0.7.js"></script>
+<script src="https://modao.cc/agent-py/static/source/js/echarts.min.5.4.3.js"></script>
+<!-- 使用CDN加载Three.js以实现3D地球，因为它在本地列表中未提供但需求明确要求WebGL -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.145.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.145.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://unpkg.com/three-globe"></script>
+<style>
+        @import url('https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Serif+SC:wght@300;700&display=swap');
+
+        :root {
+            --horror-red: #8b0000;
+            --ghost-cyan: #00f2ff;
+            --dark-bg: #050507;
+            --panel-bg: rgba(10, 12, 18, 0.85);
+        }
+
+        body {
+            background-color: var(--dark-bg);
+            color: #d1d5db;
+            font-family: 'Noto Serif SC', serif;
+            overflow: hidden;
+        }
+
+        .title-font {
+            font-family: 'Ma Shan Zheng', cursive;
+        }
+
+        .glass-panel {
+            background: var(--panel-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+        }
+
+        .blood-pulse {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; box-shadow: 0 0 0 0 rgba(139, 0, 0, 0.7); }
+            70% { transform: scale(1.5); opacity: 0; box-shadow: 0 0 0 10px rgba(139, 0, 0, 0); }
+            100% { transform: scale(1); opacity: 0; box-shadow: 0 0 0 0 rgba(139, 0, 0, 0); }
+        }
+
+        .scanline {
+            width: 100%;
+            height: 2px;
+            background: rgba(0, 242, 255, 0.1);
+            position: absolute;
+            top: 0;
+            left: 0;
+            animation: scan 4s linear infinite;
+            z-index: 50;
+            pointer-events: none;
+        }
+
+        @keyframes scan {
+            0% { top: 0; }
+            100% { top: 100%; }
+        }
+
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--horror-red);
+            border-radius: 10px;
+        }
+
+        /* 页面过渡效果 */
+        .page-transition-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--dark-bg);
+            z-index: 99999;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.4s ease-in-out;
+        }
+
+        .page-transition-overlay.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .page-transition-overlay.fade-out {
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+        }
+
+        /* 导航链接悬停效果 */
+        .nav-link {
+            position: relative;
+            padding: 0.5rem 0;
+            transition: all 0.3s ease;
+        }
+
+        .nav-link::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 0;
+            height: 2px;
+            background: linear-gradient(90deg, var(--horror-red), var(--ghost-cyan));
+            transition: width 0.3s ease;
+        }
+
+        .nav-link:hover::after {
+            width: 100%;
+        }
+
+        .nav-link:hover {
+            color: var(--ghost-cyan);
+            text-shadow: 0 0 10px var(--ghost-cyan);
+        }
+
+        /* 页面加载动画 */
+        .page-content {
+            animation: pageLoad 0.6s ease-out forwards;
+        }
+
+        @keyframes pageLoad {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        #three-container {
+            width: 100vw;
+            height: 100vh;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        .node-marker {
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .node-marker:hover {
+            filter: brightness(1.5) drop-shadow(0 0 8px var(--horror-red));
+        }
+
+        /* 自定义光标 */
+        #custom-cursor {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #00ffff;
+            border-radius: 50%;
+            position: fixed;
+            pointer-events: none;
+            z-index: 9999;
+            transform: translate(-50%, -50%);
+            transition: transform 0.15s ease-out, width 0.2s, height 0.2s, border-color 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #custom-cursor::after {
+            content: '';
+            width: 4px;
+            height: 4px;
+            background-color: #00ffff;
+            border-radius: 50%;
+        }
+
+        #custom-cursor.hovering {
+            width: 30px;
+            height: 30px;
+            background-color: rgba(0, 255, 255, 0.1);
+            border-color: #00ffff;
+            transform: translate(-50%, -50%) scale(1.2);
+        }
+
+        #custom-cursor.locked {
+            width: 24px;
+            height: 24px;
+            background-color: rgba(0, 255, 255, 0.2);
+            border-color: #00ffff;
+            transform: translate(-50%, -50%) scale(1.1);
+        }
+
+        #custom-cursor.locked::after {
+            background-color: #00ffff;
+            width: 6px;
+            height: 6px;
+        }
+
+        body, a, button, .cursor-pointer, canvas {
+            cursor: none !important;
+        }
+    </style>
+</head>
+<body class="antialiased">
+<!-- 页面过渡效果 -->
+<div class="page-transition-overlay" id="pageTransition">
+    <div class="flex items-center justify-center h-full">
+        <div class="text-center">
+            <div class="inline-block w-16 h-16 border-4 border-red-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+            <p class="text-red-600 text-sm tracking-widest uppercase">加载中...</p>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    const overlay = document.getElementById('pageTransition');
+    let isTransitioning = false;
+
+    overlay.classList.add('active');
+    setTimeout(() => {
+        overlay.classList.add('fade-out');
+        setTimeout(() => {
+            overlay.classList.remove('active', 'fade-out');
+        }, 300);
+    }, 500);
+
+    document.querySelectorAll('.nav-link').forEach(link => {
+        link.addEventListener('click', function(e) {
+            const href = this.getAttribute('href');
+            if (href && href.endsWith('.html') && !isTransitioning) {
+                e.preventDefault();
+                isTransitioning = true;
+                overlay.classList.add('active');
+                setTimeout(() => {
+                    window.location.href = href;
+                }, 400);
+            }
+        });
+    });
+})();
+</script>
+
+<div id="custom-cursor"></div>
+<div class="scanline"></div>
+<div id="event-tooltip" class="fixed pointer-events-none z-50 bg-black/80 text-white text-xs px-3 py-1 rounded border border-red-500/50 shadow-lg opacity-0 transition-opacity duration-200"></div>
+<!-- 全局导航 -->
+<header class="fixed top-0 left-0 w-full z-[100] px-8 py-6 flex justify-between items-center pointer-events-none">
+<div class="flex items-center space-x-4 pointer-events-auto">
+<div class="w-10 h-10 border border-red-600 rounded flex items-center justify-center">
+<iconify-icon class="text-2xl text-red-600" icon="mdi:skull"></iconify-icon>
+</div>
+<h1 class="text-xl font-bold tracking-[0.2em] title-font text-red-600">GARI / 诡异事件录</h1>
+</div>
+<nav class="flex items-center space-x-10 pointer-events-auto text-xs font-bold tracking-widest uppercase">
+<a class="nav-link text-red-600" href="index.html">高级探测</a>
+<a class="nav-link" href="archives.html">绝密档案</a>
+<a class="nav-link" href="about.html">关于机构</a>
+<div class="h-4 w-[1px] bg-gray-700"></div>
+<p class="text-[10px] text-gray-500 font-mono" id="local-date"></p>
+<script>
+    document.getElementById('local-date').textContent = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' }) + ' / LOCAL TIME';
+</script>
+</nav>
+</header>
+<div id="three-container"></div>
+<!-- 左侧悬浮控制 -->
+<aside class="fixed left-4 md:left-8 top-20 md:top-24 w-72 md:w-80 z-40 flex flex-col space-y-4 pointer-events-none max-h-[calc(100vh-120px)]">
+<!-- 统计面板 -->
+<div class="glass-panel p-4 md:p-6 rounded-lg pointer-events-auto border-l-4 border-cyan-600 mb-0 bg-gradient-to-br from-cyan-900/10 to-transparent shrink-0">
+<h2 class="text-xs md:text-sm font-bold flex items-center mb-2 md:mb-4">
+<iconify-icon class="mr-2 text-cyan-500 text-lg" icon="mdi:chart-timeline-variant"></iconify-icon> 总灵异事件
+            </h2>
+<div class="bg-black/40 p-2 md:p-3 rounded border border-white/5">
+<p class="text-2xl md:text-3xl font-bold title-font text-red-600" id="total-events-count">--</p>
+</div>
+</div>
+<div class="glass-panel p-4 md:p-6 rounded-lg pointer-events-auto border-l-4 border-red-600 flex flex-col min-h-0">
+<div class="mb-4 relative shrink-0">
+<input class="w-full bg-black/40 border border-red-900/30 rounded py-1.5 px-3 text-[10px] md:text-xs focus:outline-none focus:border-red-500 transition-colors text-gray-300" placeholder="搜索探测点..." type="text"/>
+<iconify-icon class="absolute right-3 top-2 text-gray-500" icon="mdi:magnify"></iconify-icon>
+</div>
+<div class="overflow-y-auto pr-1 custom-scrollbar">
+<p class="text-[10px] text-red-500 font-mono mb-2 uppercase tracking-tighter">Quick Scan / 区域快速扫描</p>
+<h2 class="text-xs md:text-sm font-bold mb-4 md:mb-6 flex items-center">
+<iconify-icon class="mr-2 text-red-600 text-lg" icon="mdi:target-variant"></iconify-icon> 异常维度定位
+                </h2>
+<nav class="space-y-2 md:space-y-3">
+<button class="w-full flex items-center justify-between px-3 py-1.5 md:py-2 rounded bg-white/5 hover:bg-white/10 border border-white/5 text-[10px] md:text-xs transition-all" onclick="resetGlobe()">
+<span>🌍 全球概览</span>
+<iconify-icon class="text-gray-500" icon="mdi:refresh"></iconify-icon>
+</button>
+<div class="h-[1px] bg-gradient-to-r from-red-900/50 to-transparent my-3 md:my-4"></div>
+<button class="w-full flex items-center justify-between px-3 py-1.5 md:py-2 rounded bg-red-900/10 hover:bg-red-900/30 border border-red-900/20 text-xs md:text-sm transition-all group" onclick="focusContinent('asia')">
+<span class="flex items-center"><span class="mr-2 md:mr-3 text-base md:text-lg">🐉</span> 亚洲地区 (60+)</span>
+<span class="text-[10px] md:text-xs text-red-500 font-mono group-hover:translate-x-1 transition-transform">01 →</span>
+</button>
+<button class="w-full flex items-center justify-between px-3 py-1.5 md:py-2 rounded bg-red-900/10 hover:bg-red-900/30 border border-red-900/20 text-xs md:text-sm transition-all group" onclick="focusContinent('europe')">
+<span class="flex items-center"><span class="mr-2 md:mr-3 text-base md:text-lg">🏰</span> 欧洲地区</span>
+<span class="text-[10px] md:text-xs text-red-500 font-mono group-hover:translate-x-1 transition-transform">02 →</span>
+</button>
+<button class="w-full flex items-center justify-between px-3 py-1.5 md:py-2 rounded bg-red-900/10 hover:bg-red-900/30 border border-red-900/20 text-xs md:text-sm transition-all group" onclick="focusContinent('north_america')">
+<span class="flex items-center"><span class="mr-2 md:mr-3 text-base md:text-lg">🦅</span> 北美地区</span>
+<span class="text-[10px] md:text-xs text-red-500 font-mono group-hover:translate-x-1 transition-transform">03 →</span>
+</button>
+<button class="w-full flex items-center justify-between px-3 py-1.5 md:py-2 rounded bg-red-900/10 hover:bg-red-900/30 border border-red-900/20 text-xs md:text-sm transition-all group" onclick="focusContinent('africa')">
+<span class="flex items-center"><span class="mr-2 md:mr-3 text-base md:text-lg">🐘</span> 非洲地区 (20+)</span>
+<span class="text-[10px] md:text-xs text-red-500 font-mono group-hover:translate-x-1 transition-transform">04 →</span>
+</button>
+<button class="w-full flex items-center justify-between px-3 py-1.5 md:py-2 rounded bg-red-900/10 hover:bg-red-900/30 border border-red-900/20 text-xs md:text-sm transition-all group" onclick="focusContinent('south_america')">
+<span class="flex items-center"><span class="mr-2 md:mr-3 text-base md:text-lg">🐆</span> 南美地区 (20)</span>
+<span class="text-[10px] md:text-xs text-red-500 font-mono group-hover:translate-x-1 transition-transform">05 →</span>
+</button>
+<button class="w-full flex items-center justify-between px-3 py-1.5 md:py-2 rounded bg-red-900/10 hover:bg-red-900/30 border border-red-900/20 text-xs md:text-sm transition-all group" onclick="focusContinent('oceania')">
+<span class="flex items-center"><span class="mr-2 md:mr-3 text-base md:text-lg">🦘</span> 大洋洲地区</span>
+<span class="text-[10px] md:text-xs text-red-500 font-mono group-hover:translate-x-1 transition-transform">06 →</span>
+</button>
+</nav>
+<div class="mt-6 md:mt-8">
+<p class="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-3">时间维度</p>
+<div class="flex bg-black/60 p-1 rounded border border-gray-800">
+<button class="flex-1 py-1.5 text-[10px] md:text-xs rounded bg-red-500 text-white" id="btn-modern" onclick="filterByTimeFrame('近现代')">近现代</button>
+<button class="flex-1 py-1.5 text-[10px] md:text-xs rounded bg-gray-700 text-gray-400" id="btn-ancient" onclick="filterByTimeFrame('古老传说')">古老</button>
+</div>
+</div>
+</div>
+</div>
+<div class="glass-panel p-4 rounded-lg pointer-events-auto flex-1 min-h-0 flex flex-col overflow-hidden">
+<h3 class="text-[10px] md:text-xs font-bold text-red-500 mb-3 md:mb-4 flex items-center shrink-0">
+<iconify-icon class="mr-2" icon="mdi:alert-decagram"></iconify-icon>实时探测流
+            </h3>
+<div class="space-y-3 md:space-y-4 overflow-y-auto flex-1 custom-scrollbar pr-1" id="log-container">
+<!-- 动态生成的日志 -->
+<div class="border-l-2 border-cyan-500/30 pl-3 py-1">
+<p class="text-[10px] font-mono text-cyan-500">14:02:15 UTC</p>
+<p class="text-xs text-gray-400">百慕大三角海域检测到磁场波动异常...</p>
+</div>
+<div class="border-l-2 border-red-500/30 pl-3 py-1">
+<p class="text-[10px] font-mono text-red-500">13:58:44 UTC</p>
+<p class="text-xs text-gray-400">巴黎地下墓穴出现低频次声波反馈...</p>
+</div>
+<div class="border-l-2 border-gray-500/30 pl-3 py-1">
+<p class="text-[10px] font-mono text-gray-500">13:45:10 UTC</p>
+<p class="text-xs text-gray-400">青木原树海监控点 A14 失去信号。</p>
+</div>
+</div>
+</div>
+</aside>
+<!-- 透明遮罩层 -->
+<div id="detail-overlay" class="fixed inset-0 z-[50] hidden"></div>
+<!-- 右侧详情面板 (抽屉) -->
+<section class="fixed right-0 top-20 md:top-24 h-[calc(100%-120px)] w-full md:w-[450px] z-[60] glass-panel transform translate-x-full transition-transform duration-500 ease-in-out p-6 md:p-8 overflow-y-auto rounded-l-2xl" id="detail-panel">
+<button class="absolute top-4 right-4 md:top-6 md:right-6 text-gray-500 hover:text-red-500 transition-colors" onclick="closeDetail()">
+<iconify-icon class="text-2xl" icon="mdi:close"></iconify-icon>
+</button>
+<div id="detail-content">
+<!-- 由 JS 填充 -->
+<div class="text-center py-20 text-gray-600">
+<iconify-icon class="text-4xl animate-spin mb-4" icon="mdi:loading"></iconify-icon>
+<p>正在同步加密档案...</p>
+</div>
+</div>
+</section>
+<!-- 底部控制提示 -->
+<div class="fixed bottom-6 left-1/2 transform -translate-x-1/2 glass-panel px-6 py-2 rounded-full flex items-center space-x-6 z-50 pointer-events-none">
+<div class="flex items-center text-[10px] text-gray-400">
+<iconify-icon class="mr-1 text-sm text-cyan-500" icon="mdi:mouse-left-click"></iconify-icon> 选择地点
+        </div>
+<div class="flex items-center text-[10px] text-gray-400">
+<iconify-icon class="mr-1 text-sm text-cyan-500" icon="mdi:mouse-scroll-wheel"></iconify-icon> 缩放视野
+        </div>
+<div class="flex items-center text-[10px] text-gray-400">
+<iconify-icon class="mr-1 text-sm text-cyan-500" icon="mdi:gesture-swipe"></iconify-icon> 旋转地球
+        </div>
+</div>
+<script>
+        // 数据集
+        const paranormalEvents = [
+            {
+                id: 'bermuda',
+                name: '百慕大三角 (Bermuda Triangle)',
+                region: 'americas',
+                country: '北大西洋',
+                timeFrame: '近现代',
+                coords: { lat: 32.3078, lng: -64.7505 },
+                history: '由百慕大、迈阿密和波多黎各构成的三角海域，已有超过50艘船只和20架飞机在此失踪。',
+                phenomena: '导航仪器失灵、罗盘乱转、无线电信号中断，1945年美国海军第19飞行中队集体消失事件最为著名。',
+                analysis: '主流科学解释包括甲烷水合物释放、强烈洋流和地磁异常。',
+                icon: 'mdi:triangle-outline'
+            },
+            {
+                id: 'paris',
+                name: '巴黎地下墓穴 (Catacombes de Paris)',
+                region: 'europe',
+                country: '法国',
+                timeFrame: '远古',
+                coords: { lat: 48.8339, lng: 2.3324 },
+                history: '1786年巴黎爆发瘟疫，政府决定将市区公墓的尸骨转移至此，共安放了约600万具人类尸骨。',
+                phenomena: '游客常报告听到诡异的低语声和脚步声，部分区域温度异常降低。',
+                analysis: '环境极度压抑可能引发幻觉；深层地下可能存在未知的气流波动。',
+                icon: 'mdi:skull'
+            },
+            {
+                id: 'aokigahara',
+                name: '青木原树海 (Aokigahara)',
+                region: 'asia',
+                country: '日本',
+                timeFrame: '远古',
+                coords: { lat: 35.4750, lng: 138.6500 },
+                history: '位于富士山下，由于磁铁矿导致指南针失灵。自1950年代以来成为著名的自杀地点。',
+                phenomena: '传说森林中有"怨灵"出没，常有人报告在森林中看到幻影和听到哭泣声。',
+                analysis: '高密度的铁矿干扰了平衡感和导航，造成生理性的不安感。',
+                icon: 'mdi:pine-tree'
+            },
+            {
+                id: 'london-tower',
+                name: '伦敦塔 (Tower of London)',
+                region: 'europe',
+                country: '英国',
+                timeFrame: '远古',
+                coords: { lat: 51.5081, lng: -0.0759 },
+                history: '建于1078年，曾用作堡垒、王宫、监狱和刑场。拥有安妮·博林王后等著名幽灵传说。',
+                phenomena: '目击者报告看到身穿都铎时期服装的幽灵在塔内游荡。',
+                analysis: '历史文化层面的强烈暗示是目击事件频发的原因。',
+                icon: 'mdi:castle'
+            },
+            {
+                id: 'dracula',
+                name: '罗马尼亚吸血鬼城堡 (Bran Castle)',
+                region: 'europe',
+                country: '罗马尼亚',
+                timeFrame: '远古',
+                coords: { lat: 45.5151, lng: 25.3672 },
+                history: '传说中德古拉伯爵的居住地，弗拉德三世曾在此被囚禁。',
+                phenomena: '当地居民传闻夜晚能听到非人的尖叫，并有不明飞行生物盘旋。',
+                analysis: '民间传说与古堡建筑风格结合产生的心理恐怖。',
+                icon: 'mdi:bat'
+            },
+            {
+                id: 'pharaoh',
+                name: '法老诅咒 (Valley of the Kings)',
+                region: 'africa',
+                country: '埃及',
+                timeFrame: '远古',
+                coords: { lat: 25.7402, lng: 32.6014 },
+                history: '图坦卡蒙陵墓挖掘后，多位探险队成员离奇死亡。',
+                phenomena: '陵墓内壁画被指带有诅咒，进入者遭遇连续不幸。',
+                analysis: '可能是封闭数千年的古墓中存在致命的真菌或细菌。',
+                icon: 'mdi:pyramid'
+            },
+            {
+                id: 'dolls',
+                name: '墨西哥娃娃岛 (Island of the Dolls)',
+                region: 'americas',
+                country: '墨西哥',
+                timeFrame: '远古',
+                coords: { lat: 19.2616, lng: -99.0964 },
+                history: '一名隐居男子为安抚溺水女孩灵魂，在岛上挂满布娃娃。',
+                phenomena: '游客声称看到布娃娃的眼睛移动，并听到它们低声说话。',
+                analysis: '恐怖谷效应的极致体现。',
+                icon: 'mdi:doll'
+            },
+            {
+                id: 'area51',
+                name: '51区 (Area 51)',
+                region: 'americas',
+                country: '美国',
+                timeFrame: '近现代',
+                coords: { lat: 37.2343, lng: -115.8067 },
+                history: '内华达州的高度机密军事基地，传闻与外星文明研究有关。',
+                phenomena: '频繁的高空不明飞行物目击，以及极度严格的安保。',
+                analysis: '先进飞行器的测试场。',
+                icon: 'mdi:alien'
+            },
+            {
+                id: 'fengmen',
+                name: '封门村',
+                region: 'asia',
+                country: '中国',
+                timeFrame: '近现代',
+                coords: { lat: 35.2500, lng: 113.1500 },
+                history: '河南省著名的无人村，因"人鬼同居"的习俗和离奇事件闻名。',
+                phenomena: '驴友报告丢失装备、指南针失灵、身体出现莫名抓痕。',
+                analysis: '村庄磁场异常及地理环境导致的心理暗示。',
+                icon: 'mdi:home-ghost'
+            },
+            {
+                id: 'flying-dutchman',
+                name: '幽灵船 (Flying Dutchman)',
+                region: 'oceania',
+                country: '印度尼西亚海域',
+                timeFrame: '远古',
+                coords: { lat: -6.2088, lng: 106.8456 },
+                history: '传说中永远无法返乡的幽灵船，常在风暴中现身。',
+                phenomena: '海员目击在海平面上漂浮的透明船影，随后海面出现异象。',
+                analysis: '复杂的海面折射现象（海市蜃楼）。',
+                icon: 'mdi:ship-wheel'
+            },
+            {
+                id: 'roswell',
+                name: '罗斯威尔 (Roswell)',
+                region: 'americas',
+                country: '美国',
+                timeFrame: '近现代',
+                coords: { lat: 33.3943, lng: -104.5230 },
+                history: '1947年发生著名的UFO坠毁事件。',
+                phenomena: '据传军方回收了外星人遗体。',
+                analysis: '官方称是气象气球，民间则坚信是外星科技。',
+                icon: 'mdi:ufo'
+            },
+            {
+                id: 'lochness',
+                name: '尼斯湖 (Loch Ness)',
+                region: 'europe',
+                country: '英国',
+                timeFrame: '远古',
+                coords: { lat: 57.3229, lng: -4.4244 },
+                history: '苏格兰深湖，以"水怪"传说闻名全球。',
+                phenomena: '无数目击者声称看到湖中巨大的长颈生物。',
+                analysis: '可能是巨大的鳗鱼或由于波浪产生的错觉。',
+                icon: 'mdi:waves'
+            },
+            {
+                id: 'easter-island',
+                name: '复活节岛 (Easter Island)',
+                region: 'americas',
+                country: '智利',
+                timeFrame: '远古',
+                coords: { lat: -27.1127, lng: -109.3497 },
+                history: '遍布巨大的摩艾石像，其搬运方式至今是谜。',
+                phenomena: '石像散发异常能量，部分探险者报告产生幻听。',
+                analysis: '远古文明的巨石工艺。',
+                icon: 'mdi:head-cog'
+            },
+            {
+                id: 'stonehenge',
+                name: '巨石阵 (Stonehenge)',
+                region: 'europe',
+                country: '英国',
+                timeFrame: '远古',
+                coords: { lat: 51.1789, lng: -1.8262 },
+                history: '史前遗迹，被认为具有天文和祭祀功能。',
+                phenomena: '特定时节指南针在石阵中心失效。',
+                analysis: '古人对天文规律的极致应用。',
+                icon: 'mdi:hexagon-outline'
+            },
+            {
+                id: 'giza',
+                name: '吉萨大金字塔 (Giza Pyramids)',
+                region: 'africa',
+                country: '埃及',
+                timeFrame: '远古',
+                coords: { lat: 29.9792, lng: 31.1342 },
+                history: '世界七大奇迹之一，其构造与星图精准对应。',
+                phenomena: '塔内存在"微波"能量场，可减缓物质腐烂。',
+                analysis: '高超的几何学与物理构造。',
+                icon: 'mdi:pyramid'
+            },
+            {
+                id: 'nazca',
+                name: '纳斯卡线条 (Nazca Lines)',
+                region: 'americas',
+                country: '秘鲁',
+                timeFrame: '远古',
+                coords: { lat: -14.7390, lng: -75.1300 },
+                history: '沙漠中只能从高空俯瞰的巨型图案。',
+                phenomena: '线条交汇处检测到异常磁通量。',
+                analysis: '远古宗教祭祀或外星导航假说。',
+                icon: 'mdi:vector-line'
+            },
+            {
+                id: 'tunguska',
+                name: '通古斯大爆炸 (Tunguska)',
+                region: 'asia',
+                country: '俄罗斯',
+                timeFrame: '近现代',
+                coords: { lat: 60.9167, lng: 101.9167 },
+                history: '1908年西伯利亚发生的巨大爆炸，摧毁了2000平方公里森林。',
+                phenomena: '未发现陨石坑，有传闻是尼古拉·特斯拉的实验。',
+                analysis: '陨石在大气层中解体。',
+                icon: 'mdi:explosion'
+            },
+            {
+                id: 'mary-king',
+                name: '玛丽金街 (Mary King\'s Close)',
+                region: 'europe',
+                country: '英国',
+                timeFrame: '远古',
+                coords: { lat: 55.9495, lng: -3.1905 },
+                history: '爱丁堡地下街道，黑死病时期曾封闭此地。',
+                phenomena: '名为"安妮"的女孩幽灵常在街角出没。',
+                analysis: '地下空间狭窄阴冷引发的生理反应。',
+                icon: 'mdi:road-variant'
+            },
+            {
+                id: 'poveglia',
+                name: '波维利亚岛 (Poveglia Island)',
+                region: 'europe',
+                country: '意大利',
+                timeFrame: '近现代',
+                coords: { lat: 45.3814, lng: 12.3311 },
+                history: '曾作为瘟疫隔离区和精神病院，被称为世界上最受诅咒的岛。',
+                phenomena: '岛上土壤50%是骨灰，渔民常捞到人类遗骸，夜间传来尖叫。',
+                analysis: '大量惨剧遗留的恐怖氛围。',
+                icon: 'mdi:island'
+            },
+            {
+                id: 'bhangarh-fort',
+                name: '班噶城堡 (Bhangarh Fort)',
+                region: 'asia',
+                country: '印度',
+                timeFrame: '近现代',
+                coords: { lat: 27.0950, lng: 76.3500 },
+                history: '被诅咒的废弃城市，法律禁止日落后进入。',
+                phenomena: '在堡内停留的人晚上会遭遇不测。',
+                analysis: '野生动物活动与次声波干扰。',
+                icon: 'mdi:pillar'
+            },
+            {
+                id: 'monte-cristo',
+                name: '蒙特克里斯托宅邸',
+                region: 'oceania',
+                country: '澳大利亚',
+                timeFrame: '近现代',
+                coords: { lat: -34.8464, lng: 147.8833 },
+                history: '澳洲最著名的鬼屋，发生过多起不幸坠亡事件。',
+                phenomena: '窗帘自动开合，灯光在无人时闪烁。',
+                analysis: '老旧建筑的电路问题及光影错觉。',
+                icon: 'mdi:home-variant'
+            },
+            {
+                id: 'ancient-ram',
+                name: '古拉姆旅馆 (Ancient Ram Inn)',
+                region: 'europe',
+                country: '英国',
+                timeFrame: '近现代',
+                coords: { lat: 51.6853, lng: -2.3524 },
+                history: '建于异教祭祀场所之上。',
+                phenomena: '住客报告被隐形力量拉扯。',
+                analysis: '地质裂缝导致的电磁异常。',
+                icon: 'mdi:bed'
+            },
+            {
+                id: 'myrtles',
+                name: '桃金娘庄园 (Myrtles Plantation)',
+                region: 'americas',
+                country: '美国',
+                timeFrame: '近现代',
+                coords: { lat: 30.7960, lng: -91.2889 },
+                history: '镜子中常出现消失的黑人女仆。',
+                phenomena: '传闻镜子上有无法抹去的指纹。',
+                analysis: '银盐镀膜老化产生的纹理。',
+                icon: 'mdi:mirror'
+            },
+            {
+                id: 'stanley',
+                name: '斯坦利酒店 (Stanley Hotel)',
+                region: 'americas',
+                country: '美国',
+                timeFrame: '近现代',
+                coords: { lat: 40.3833, lng: -105.5189 },
+                history: '《闪灵》的灵感来源。',
+                phenomena: '4楼常有小孩跑动的声音。',
+                analysis: '木质结构的热胀冷缩声。',
+                icon: 'mdi:office-building'
+            },
+            {
+                id: 'eastern-state',
+                name: '东方州立监狱',
+                region: 'americas',
+                country: '美国',
+                timeFrame: '近现代',
+                coords: { lat: 39.9683, lng: -75.1727 },
+                history: '首创单独监禁制的监狱。',
+                phenomena: '监视塔中经常出现巡逻的黑影。',
+                analysis: '极其封闭环境引发的精神压力残余。',
+                icon: 'mdi:fence'
+            },
+            {
+                id: 'waverly-hills',
+                name: '波浪山疗养院',
+                region: 'americas',
+                country: '美国',
+                timeFrame: '近现代',
+                coords: { lat: 38.1258, lng: -85.8364 },
+                history: '肺结核爆发时期的隔离中心，著名的"死者隧道"。',
+                phenomena: '手术室区域常有奇怪的光影移动。',
+                analysis: '废弃建筑中的光化学反应。',
+                icon: 'mdi:hospital-marker'
+            },
+            {
+                id: 'forbidden-city',
+                name: '故宫 (Forbidden City)',
+                region: 'asia',
+                country: '中国',
+                timeFrame: '远古',
+                coords: { lat: 39.9163, lng: 116.3972 },
+                history: '明清皇宫，历经数百年风云。',
+                phenomena: '雨夜红墙上显现清朝宫女的影子。',
+                analysis: '红墙中的四氧化三铁在闪电作用下产生的磁记录。',
+                icon: 'mdi:castle'
+            },
+            {
+                id: 'himeji',
+                name: '姬路城 (Himeji Castle)',
+                region: 'asia',
+                country: '日本',
+                timeFrame: '远古',
+                coords: { lat: 34.8394, lng: 134.6939 },
+                history: '传说阿菊井中仍传出数盘子的声音。',
+                phenomena: '夜晚井底传来阴森的低语。',
+                analysis: '风声在深井中的共鸣。',
+                icon: 'mdi:castle'
+            },
+            {
+                id: 'gonjiam',
+                name: '昆池岩精神病院',
+                region: 'asia',
+                country: '韩国',
+                timeFrame: '近现代',
+                coords: { lat: 37.3621, lng: 127.3242 },
+                history: '由于多名病人集体死亡而关闭。',
+                phenomena: '实验室内常有医疗器械自行翻动。',
+                analysis: '废弃实验室的结构不稳。',
+                icon: 'mdi:hospital-building'
+            },
+            {
+                id: 'lawang-sewu',
+                name: '千门之屋',
+                region: 'asia',
+                country: '印度尼西亚',
+                timeFrame: '近现代',
+                coords: { lat: -6.9841, lng: 110.4104 },
+                history: '二战时期曾作为日军监狱。',
+                phenomena: '地下室中常传出受刑者的惨叫声。',
+                analysis: '排水管道的水流冲击声。',
+                icon: 'mdi:door-closed'
+            },
+            {
+                id: 'hoia-baciu',
+                name: '霍亚巴丘森林',
+                region: 'europe',
+                country: '罗马尼亚',
+                timeFrame: '近现代',
+                coords: { lat: 46.7770, lng: 23.5130 },
+                history: '树木生长奇诡，被誉为"特兰西瓦尼亚的百慕大"。',
+                phenomena: '森林中心的一块圆形空地寸草不生。',
+                analysis: '地表下的微量放射性物质抑制了植物生长。',
+                icon: 'mdi:pine-tree-box'
+            },
+            {
+                id: 'devils-sea',
+                name: '龙三角 (Devil\'s Sea)',
+                region: 'asia',
+                country: '日本海域',
+                timeFrame: '近现代',
+                coords: { lat: 25.0000, lng: 137.0000 },
+                history: '频繁发生大型货轮消失事件的海域。',
+                phenomena: '指南针在附近海域会发生180度偏转。',
+                analysis: '海底火山活动导致的磁场剧变。',
+                icon: 'mdi:triangle'
+            },
+            {
+                id: 'skinwalker',
+                name: '皮行者牧场',
+                region: 'americas',
+                country: '美国',
+                timeFrame: '近现代',
+                coords: { lat: 40.2583, lng: -109.8803 },
+                history: '传闻中有变身能力和外星科技出没。',
+                phenomena: '牲畜离奇死亡，切口精准且无血迹。',
+                analysis: '疑似绝密生物技术实验场地。',
+                icon: 'mdi:wolf'
+            },
+            {
+                id: 'dyatlov',
+                name: '迪亚特洛夫事件',
+                region: 'asia',
+                country: '俄罗斯',
+                timeFrame: '近现代',
+                coords: { lat: 61.7549, lng: 59.4626 },
+                history: '1959年登山队离奇集体死亡。',
+                phenomena: '帐篷从内部切开，死者衣物带强辐射。',
+                analysis: '极地风暴引发的次声波导致恐慌。',
+                icon: 'mdi:snowflake'
+            },
+            {
+                id: 'oak-island',
+                name: '橡树岛钱坑',
+                region: 'americas',
+                country: '加拿大',
+                timeFrame: '远古',
+                coords: { lat: 44.5133, lng: -64.2951 },
+                history: '设有精妙机关的宝藏坑，已有数人丧命。',
+                phenomena: '每当挖掘到特定深度就会发生海水倒灌。',
+                analysis: '古人设计的精巧水利联动防盗系统。',
+                icon: 'mdi:gold'
+            },
+            {
+                id: 'machu-picchu',
+                name: '马丘比丘',
+                region: 'americas',
+                country: '秘鲁',
+                timeFrame: '远古',
+                coords: { lat: -13.1631, lng: -72.5450 },
+                history: '失落的印加城市。',
+                phenomena: '栓日石在冬至日散发蓝光。',
+                analysis: '石材切割工艺与光学角度的巧合。',
+                icon: 'mdi:mountain'
+            },
+            {
+                id: 'angkor-wat',
+                name: '吴哥窟',
+                region: 'asia',
+                country: '柬埔寨',
+                timeFrame: '远古',
+                coords: { lat: 13.4125, lng: 103.8670 },
+                history: '巨大的石窟寺庙，其布局对应天龙座星图。',
+                phenomena: '中心塔顶在特定星象下会产生共振。',
+                analysis: '神庙建筑的结构声学特性。',
+                icon: 'mdi:temple-buddhist'
+            },
+            {
+                id: 'pompeii',
+                name: '庞贝古城',
+                region: 'europe',
+                country: '意大利',
+                timeFrame: '远古',
+                coords: { lat: 40.7489, lng: 14.4848 },
+                history: '因火山爆发而被瞬间封存的城市。',
+                phenomena: '遗址中经常出现灰尘构成的幽灵轮廓。',
+                analysis: '气流带动的细微灰尘旋转。',
+                icon: 'mdi:volcano'
+            },
+            {
+                id: 'chichen-itza',
+                name: '奇琴伊察',
+                region: 'americas',
+                country: '墨西哥',
+                timeFrame: '远古',
+                coords: { lat: 20.6843, lng: -88.5678 },
+                history: '玛雅金字塔。',
+                phenomena: '拍手时金字塔会回传类似鸟鸣的声音。',
+                analysis: '阶梯结构对声波的衍射。',
+                icon: 'mdi:pyramid'
+            },
+            {
+                id: 'trans-allegheny',
+                name: '跨阿勒格尼疯人院',
+                region: 'americas',
+                country: '美国',
+                timeFrame: '近现代',
+                coords: { lat: 39.0381, lng: -80.4683 },
+                history: '曾因极度拥挤和暴力臭名昭著。',
+                phenomena: '地窖中时常传出重物拖行的声音。',
+                analysis: '旧建筑沉降产生的异响。',
+                icon: 'mdi:hospital-marker'
+            },
+            {
+                id: 'winchester',
+                name: '温彻斯特神秘屋',
+                region: 'americas',
+                country: '美国',
+                timeFrame: '近现代',
+                coords: { lat: 37.3184, lng: -121.9511 },
+                history: '为了躲避猎枪冤魂而不断建造的迷宫住宅。',
+                phenomena: '通往天花板的楼梯和通往室外的死窗。',
+                analysis: '屋主由于过度愧疚导致的精神错乱产物。',
+                icon: 'mdi:home-search'
+            },
+            {
+                id: 'edinburgh-castle',
+                name: '爱丁堡城堡',
+                region: 'europe',
+                country: '英国',
+                timeFrame: '远古',
+                coords: { lat: 55.9486, lng: -3.1999 },
+                history: '欧洲最著名的鬼城堡。',
+                phenomena: '目击者称看到无头鼓手在城墙行进。',
+                analysis: '高海拔城堡的云雾折射。',
+                icon: 'mdi:castle'
+            },
+            {
+                id: 'corvin',
+                name: '科文城堡',
+                region: 'europe',
+                country: '罗马尼亚',
+                timeFrame: '远古',
+                coords: { lat: 45.7494, lng: 22.8883 },
+                history: '曾囚禁过德古拉的险要城堡。',
+                phenomena: '地牢区域常有莫名的火焰亮起。',
+                analysis: '沼气在密封环境下的自燃。',
+                icon: 'mdi:shield-cross'
+            },
+            {
+                id: 'leap-castle',
+                name: '利普城堡',
+                region: 'europe',
+                country: '爱尔兰',
+                timeFrame: '远古',
+                coords: { lat: 53.0280, lng: -7.8080 },
+                history: '发生过血腥兄弟残杀的"血腥礼拜堂"。',
+                phenomena: '被称为"Elemental"的恶臭怪物目击。',
+                analysis: '地下腐败物质产生的幻觉性气体。',
+                icon: 'mdi:castle'
+            },
+            {
+                id: 'houska',
+                name: '霍斯卡城堡',
+                region: 'europe',
+                country: '捷克',
+                timeFrame: '远古',
+                coords: { lat: 50.4911, lng: 14.6241 },
+                history: '据说是为了封印"地狱之门"而建。',
+                phenomena: '城堡礼拜堂正下方没有地基，是一个无底深洞。',
+                analysis: '天然的垂直溶洞景观。',
+                icon: 'mdi:gate'
+            },
+            {
+                id: 'sedlec',
+                name: '人骨教堂 (Sedlec Ossuary)',
+                region: 'europe',
+                country: '捷克',
+                timeFrame: '远古',
+                coords: { lat: 49.9619, lng: 15.2882 },
+                history: '用4万具人骨装饰的教堂。',
+                phenomena: '骨头吊灯在无风时会轻微摇晃。',
+                analysis: '地下热力循环导致的气流。',
+                icon: 'mdi:skull'
+            },
+            {
+                id: 'beelitz',
+                name: '贝利茨疗养院',
+                region: 'europe',
+                country: '德国',
+                timeFrame: '近现代',
+                coords: { lat: 52.2616, lng: 12.9234 },
+                history: '纳粹时期曾作为军事医院，希特勒曾在此就医。',
+                phenomena: '走廊中常出现二战士兵的幻影。',
+                analysis: '历史创伤留下的强烈环境印记。',
+                icon: 'mdi:hospital-building'
+            },
+            {
+                id: 'brissac',
+                name: '布里萨克城堡',
+                region: 'europe',
+                country: '法国',
+                timeFrame: '远古',
+                coords: { lat: 47.3533, lng: -0.4497 },
+                history: '著名的"绿夫人"幽灵出没地。',
+                phenomena: '目击者称看到面部全黑的女性幽灵。',
+                analysis: '古老墙面真菌产生的视觉幻象。',
+                icon: 'mdi:face-woman'
+            },
+            {
+                id: 'moosham',
+                name: '穆斯汉姆城堡',
+                region: 'europe',
+                country: '奥地利',
+                timeFrame: '远古',
+                coords: { lat: 47.1017, lng: 13.7067 },
+                history: '曾进行大规模女巫审判。',
+                phenomena: '森林中常发现被肢解的动物尸体，疑为狼人所为。',
+                analysis: '大型野生食肉动物的猎食行为。',
+                icon: 'mdi:wolf'
+            },
+            {
+                id: 'akershus',
+                name: '阿克斯胡斯城堡',
+                region: 'europe',
+                country: '挪威',
+                timeFrame: '远古',
+                coords: { lat: 59.9075, lng: 10.7369 },
+                history: '中世纪要塞，从未被攻破。',
+                phenomena: '名为"Malcanisen"的恶犬幽灵守护着城门。',
+                analysis: '影子与地形造成的视觉偏差。',
+                icon: 'mdi:dog'
+            },
+            {
+                id: 'dragsholm',
+                name: '德拉索姆城堡',
+                region: 'europe',
+                country: '丹麦',
+                timeFrame: '远古',
+                coords: { lat: 55.7711, lng: 11.3917 },
+                history: '囚禁过博思韦尔伯爵。',
+                phenomena: '墙壁内曾发现穿白裙的女子骸骨。',
+                analysis: '真实的历史残酷事件引发的联想。',
+                icon: 'mdi:human-female'
+            },
+            {
+                id: 'rose-hall',
+                name: '玫瑰厅大宅',
+                region: 'americas',
+                country: '牙买加',
+                timeFrame: '远古',
+                coords: { lat: 18.5161, lng: -77.8300 },
+                history: '白女巫安妮·帕尔默的诅咒地。',
+                phenomena: '主卧室常有婴儿哭声。',
+                analysis: '热带鸟类的鸣叫声。',
+                icon: 'mdi:baby'
+            },
+            {
+                id: 'recoleta',
+                name: '贵族公墓 (Recoleta)',
+                region: 'americas',
+                country: '阿根廷',
+                timeFrame: '远古',
+                coords: { lat: -34.5875, lng: -58.3931 },
+                history: '贝隆夫人的安息地。',
+                phenomena: '传说有人被误判死亡而活埋，棺木内有抓痕。',
+                analysis: '早期医学检测技术的局限。',
+                icon: 'mdi:coffin'
+            },
+            {
+                id: 'good-hope',
+                name: '好望角城堡',
+                region: 'africa',
+                country: '南非',
+                timeFrame: '近现代',
+                coords: { lat: -33.9255, lng: 18.4272 },
+                history: '最古老的殖民地建筑。',
+                phenomena: '午夜时分城墙上会出现奔跑的黑影。',
+                analysis: '灯塔旋转产生的阴影。',
+                icon: 'mdi:run'
+            },
+            {
+                id: 'bagua',
+                name: '八卦山防空洞',
+                region: 'asia',
+                country: '中国台湾',
+                timeFrame: '近现代',
+                coords: { lat: 24.0761, lng: 120.5472 },
+                history: '由于磁场特殊常有奇异光球出没。',
+                phenomena: '拍摄到透明的人形轮廓。',
+                analysis: '空气高湿度导致的镜头光晕。',
+                icon: 'mdi:flare'
+            },
+            {
+                id: 'tat-tak',
+                name: '达德学校',
+                region: 'asia',
+                country: '中国香港',
+                timeFrame: '近现代',
+                coords: { lat: 22.4411, lng: 114.0044 },
+                history: '被废弃的偏远学校，发生过红衣女子自缢。',
+                phenomena: '探险者报告在女厕看到红衣身影。',
+                analysis: '心理暗示引发的群体幻觉。',
+                icon: 'mdi:school'
+            },
+            {
+                id: 'changi',
+                name: '樟宜海滩',
+                region: 'asia',
+                country: '新加坡',
+                timeFrame: '近现代',
+                coords: { lat: 1.3913, lng: 103.9936 },
+                history: '二战肃清大屠杀遗址。',
+                phenomena: '夜晚海浪声中夹杂着士兵的口令声。',
+                analysis: '海风吹过礁石产生的多普勒效应。',
+                icon: 'mdi:beach'
+            },
+            {
+                id: 'clark',
+                name: '克拉克空军基地',
+                region: 'asia',
+                country: '菲律宾',
+                timeFrame: '近现代',
+                coords: { lat: 15.1858, lng: 120.5594 },
+                history: '美军撤离后留下的幽灵基地。',
+                phenomena: '废弃塔台传出已失效的航班频率。',
+                analysis: '残留电子设备受到雷电激发。',
+                icon: 'mdi:airplane'
+            },
+            {
+                id: 'diplomat',
+                name: '外交官酒店',
+                region: 'asia',
+                country: '菲律宾',
+                timeFrame: '近现代',
+                coords: { lat: 16.3989, lng: 120.5847 },
+                history: '二战时曾发生惨案，现为断壁残垣。',
+                phenomena: '当地人称看到无头修士在二楼走廊徘徊。',
+                analysis: '建筑残垣在月光下的阴影。',
+                icon: 'mdi:hotel'
+            },
+            {
+                id: 'hell-fire',
+                name: '地狱火俱乐部',
+                region: 'europe',
+                country: '爱尔兰',
+                timeFrame: '远古',
+                coords: { lat: 53.2519, lng: -6.3283 },
+                history: '传闻撒旦曾亲自造访此地参加赌局。',
+                phenomena: '大厅中心地板永远无法变暖。',
+                analysis: '地下特殊冷矿泉水的流向。',
+                icon: 'mdi:cards-spade'
+            },
+            {
+                id: 'loftus',
+                name: '洛夫特斯大厅',
+                region: 'europe',
+                country: '爱尔兰',
+                timeFrame: '远古',
+                coords: { lat: 52.1764, lng: -6.9058 },
+                history: '传闻有客人的脚变成了分叉的蹄。',
+                phenomena: '挂在墙上的肖像画会流出红色液体。',
+                analysis: '劣质颜料在潮湿环境下的化学变化。',
+                icon: 'mdi:drawing'
+            },
+            {
+                id: 'charleville',
+                name: '查理维尔城堡',
+                region: 'europe',
+                country: '爱尔兰',
+                timeFrame: '远古',
+                coords: { lat: 53.2667, lng: -7.5333 },
+                history: '名为"哈里特"的小女孩灵体在此徘徊。',
+                phenomena: '游客感受到有人牵起他们的手。',
+                analysis: '低温引起的末梢神经触感。',
+                icon: 'mdi:hand-back-right'
+            },
+            {
+                id: 'warwick',
+                name: '华威城堡',
+                region: 'europe',
+                country: '英国',
+                timeFrame: '远古',
+                coords: { lat: 52.2795, lng: -1.5851 },
+                history: '曾作为战场和监狱。',
+                phenomena: '黑塔中常有尖叫声传出。',
+                analysis: '风在狭长射箭孔中的啸叫。',
+                icon: 'mdi:castle'
+            },
+            {
+                id: 'pendle-hill',
+                name: '潘德尔山',
+                region: 'europe',
+                country: '英国',
+                timeFrame: '远古',
+                coords: { lat: 53.8611, lng: -2.2964 },
+                history: '1612年著名的女巫审判地。',
+                phenomena: '指南针在山顶会发生旋转。',
+                analysis: '山体富含高强度的磁矿。',
+                icon: 'mdi:broom'
+            },
+            {
+                id: 'pluckley',
+                name: '普拉克利村',
+                region: 'europe',
+                country: '英国',
+                timeFrame: '远古',
+                coords: { lat: 51.1717, lng: 0.7511 },
+                history: '吉尼斯纪录认定的英国最灵异村庄。',
+                phenomena: '拥有12个已证实的常驻幽灵。',
+                analysis: '极高知名度导致的社会化幻觉。',
+                icon: 'mdi:map-marker-path'
+            },
+            {
+                id: 'borley',
+                name: '博利神父宅',
+                region: 'europe',
+                country: '英国',
+                timeFrame: '近现代',
+                coords: { lat: 52.0545, lng: 0.6925 },
+                history: '被称为"英格兰最恐怖的房子"。',
+                phenomena: '家具自行移动，空中出现神秘留言。',
+                analysis: '地基下方的地下水脉震动。',
+                icon: 'mdi:home-lightning-bolt'
+            },
+            {
+                id: 'skirrid',
+                name: '斯基里德客栈',
+                region: 'europe',
+                country: '英国',
+                timeFrame: '远古',
+                coords: { lat: 51.8600, lng: -2.9700 },
+                history: '曾作为杰弗里法官的巡回法庭和刑场。',
+                phenomena: '横梁上仍留有当年绞刑的痕迹且常现索命索。',
+                analysis: '建筑木材老化产生的心理投射。',
+                icon: 'mdi:knife'
+            },
+            {
+                id: 'berry-pomeroy',
+                name: '贝里波默罗伊城堡',
+                region: 'europe',
+                country: '英国',
+                timeFrame: '远古',
+                coords: { lat: 50.4484, lng: -3.6369 },
+                history: '传闻有"白夫人"和"蓝夫人"出没。',
+                phenomena: '城堡废墟中传出婴儿的啼哭。',
+                analysis: '谷仓猫头鹰的叫声极其类似人声。',
+                icon: 'mdi:castle'
+            },
+            {
+                id: 'woodchester',
+                name: '伍德切斯特庄园',
+                region: 'europe',
+                country: '英国',
+                timeFrame: '近现代',
+                coords: { lat: 51.7100, lng: -2.2700 },
+                history: '从未完工的哥特式豪宅。',
+                phenomena: '二战士兵在礼拜堂列队。',
+                analysis: '石材缝隙产生的穿堂风引起。',
+                icon: 'mdi:office-building'
+            },
+            {
+                id: 'dudley',
+                name: '达德利城堡',
+                region: 'europe',
+                country: '英国',
+                timeFrame: '远古',
+                coords: { lat: 52.5147, lng: -2.0792 },
+                history: '传说中有"灰夫人"在塔楼飘过。',
+                phenomena: '红外相机捕捉到不规则的人形热源。',
+                analysis: '残留的热对流效应。',
+                icon: 'mdi:shield-outline'
+            },
+            {
+                id: 'chillingham',
+                name: '奇灵厄姆城堡',
+                region: 'europe',
+                country: '英国',
+                timeFrame: '远古',
+                coords: { lat: 55.5258, lng: -1.9036 },
+                history: '以酷刑室闻名，拥有"蓝孩"幽灵。',
+                phenomena: '墙内曾发现埋着的蓝色骨骸。',
+                analysis: '中世纪涂料中含有大量有毒矿石成分。',
+                icon: 'mdi:skull-scan'
+            },
+            {
+                id: 'glamis',
+                name: '格拉姆斯城堡',
+                region: 'europe',
+                country: '英国',
+                timeFrame: '远古',
+                coords: { lat: 56.6203, lng: -3.0024 },
+                history: '传闻有秘密房间禁锢着畸形的怪兽。',
+                phenomena: '城堡窗户数量与从内部数出的不符。',
+                analysis: '巧妙的建筑结构迷宫设计。',
+                icon: 'mdi:lock-pattern'
+            },
+            {
+                id: 'culzean',
+                name: '卡尔津城堡',
+                region: 'europe',
+                country: '英国',
+                timeFrame: '远古',
+                coords: { lat: 55.3546, lng: -4.7891 },
+                history: '风笛手幽灵在悬崖边演奏。',
+                phenomena: '每逢海啸前夕便能听到悠扬笛声。',
+                analysis: '气流穿过海蚀洞的音响。',
+                icon: 'mdi:trumpet'
+            },
+            {
+                id: 'skibo',
+                name: '斯基博城堡',
+                region: 'europe',
+                country: '英国',
+                timeFrame: '远古',
+                coords: { lat: 57.8731, lng: -4.0811 },
+                history: '传闻一名白衣女子被困在墙里数百年。',
+                phenomena: '走廊中常弥漫着一股浓郁的紫罗兰香味。',
+                analysis: '建筑内老式香囊遗留的气味。',
+                icon: 'mdi:flower'
+            },
+            {
+                id: 'buchenwald',
+                name: '布痕瓦尔德集中营',
+                region: 'europe',
+                country: '德国',
+                timeFrame: '近现代',
+                coords: { lat: 51.0211, lng: 11.2492 },
+                history: '纳粹时期的大规模屠杀场。',
+                phenomena: '附近树林中的鸟类从不在此落脚。',
+                analysis: '极端残酷记忆导致的自然界回避。',
+                icon: 'mdi:fence-electric'
+            },
+            {
+                id: 'auschwitz',
+                name: '奥斯威辛集中营',
+                region: 'europe',
+                country: '波兰',
+                timeFrame: '近现代',
+                coords: { lat: 50.0274, lng: 19.2020 },
+                history: '死亡工厂，人类史上最黑暗的一页。',
+                phenomena: '毒气室墙壁上残留有挣扎的抓痕，时有哀号。',
+                analysis: '极其强烈的电磁波记忆效应。',
+                icon: 'mdi:grave-stone'
+            },
+            {
+                id: 'belchite',
+                name: '贝尔奇特古镇',
+                region: 'europe',
+                country: '西班牙',
+                timeFrame: '近现代',
+                coords: { lat: 41.3050, lng: -0.7500 },
+                history: '西班牙内战后的废墟遗址。',
+                phenomena: '录音设备曾捕捉到多年前的交火声。',
+                analysis: 'EVP（电子语音现象）的典型案例。',
+                icon: 'mdi:bomb'
+            },
+            {
+                id: 'cortijo-jurado',
+                name: '胡拉多庄园',
+                region: 'europe',
+                country: '西班牙',
+                timeFrame: '近现代',
+                coords: { lat: 36.7213, lng: -4.4214 },
+                history: '传闻有撒旦教祭祀活动。',
+                phenomena: '地下暗室发现大量带有奇怪符号的骸骨。',
+                analysis: '异端宗教团体的地下活动场所。',
+                icon: 'mdi:pentagram'
+            },
+            {
+                id: 'gaiola',
+                name: '盖奥拉岛',
+                region: 'europe',
+                country: '意大利',
+                timeFrame: '近现代',
+                coords: { lat: 40.7931, lng: 14.1856 },
+                history: '每一任岛主都遭遇横死或破产。',
+                phenomena: '两座相连的小岛仿佛在海上缓缓靠近。',
+                analysis: '视觉透视效应与特殊地质结构。',
+                icon: 'mdi:bridge'
+            },
+            {
+                id: 'villa-clara',
+                name: '克拉拉别墅',
+                region: 'europe',
+                country: '意大利',
+                timeFrame: '近现代',
+                coords: { lat: 44.5000, lng: 11.3333 },
+                history: '一名叫克拉拉的女孩被父亲活埋。',
+                phenomena: '晚间花园里会传出女孩清亮的歌声。',
+                analysis: '周边水泵房运行的频率。',
+                icon: 'mdi:home'
+            },
+            {
+                id: 'rotta',
+                name: '罗塔城堡',
+                region: 'europe',
+                country: '意大利',
+                timeFrame: '远古',
+                coords: { lat: 44.9167, lng: 7.6833 },
+                history: '意大利最灵异的古堡之一。',
+                phenomena: '午夜常有一队幽灵骑士冲向护城河。',
+                analysis: '雾气配合月光形成的反射。',
+                icon: 'mdi:horse'
+            },
+            {
+                id: 'wolfsegg',
+                name: '沃尔夫塞格城堡',
+                region: 'europe',
+                country: '德国',
+                timeFrame: '远古',
+                coords: { lat: 49.1083, lng: 11.9750 },
+                history: '传说"白夫人"在花园出没。',
+                phenomena: '附近森林中存在极其危险的迷宫，进入者难返。',
+                analysis: '天然的地磁偏移区。',
+                icon: 'mdi:sprout'
+            },
+            {
+                id: 'borgvattnet',
+                name: '博里瓦特内牧师宅',
+                region: 'europe',
+                country: '瑞典',
+                timeFrame: '近现代',
+                coords: { lat: 63.3517, lng: 15.8672 },
+                history: '瑞典著名的闹鬼神父住宅。',
+                phenomena: '睡觉的人常在半夜发现自己被抬到了客厅。',
+                analysis: '梦游症在特定环境下的多发。',
+                icon: 'mdi:bed-empty'
+            },
+            {
+                id: 'fairmont-banff',
+                name: '班夫温泉酒店',
+                region: 'americas',
+                country: '加拿大',
+                timeFrame: '近现代',
+                coords: { lat: 51.1642, lng: -115.5619 },
+                history: '著名的"山姆服务生"和"873号房"。',
+                phenomena: '退役已久的服务生仍会帮客人按电梯。',
+                analysis: '老式电梯的自动化控制回路故障。',
+                icon: 'mdi:elevator'
+            },
+            {
+                id: 'empress-hotel',
+                name: '帝后酒店',
+                region: 'americas',
+                country: '加拿大',
+                timeFrame: '近现代',
+                coords: { lat: 48.4217, lng: -123.3678 },
+                history: '维多利亚市最著名的灵异建筑。',
+                phenomena: '看到一名老妇在花园剪纸，走近即消失。',
+                analysis: '空气高湿度导致的短时光学残留。',
+                icon: 'mdi:office-building'
+            },
+            {
+                id: 'keg-mansion',
+                name: '凯格豪宅',
+                region: 'americas',
+                country: '加拿大',
+                timeFrame: '近现代',
+                coords: { lat: 43.6669, lng: -79.3772 },
+                history: '曾有女佣在此由于主人去世而自缢。',
+                phenomena: '女厕所的门经常被无形的力量反锁。',
+                analysis: '建筑老化导致门锁错位。',
+                icon: 'mdi:home-modern'
+            },
+            {
+                id: 'craigdarroch',
+                name: '魁达洛古堡',
+                region: 'americas',
+                country: '加拿大',
+                timeFrame: '近现代',
+                coords: { lat: 48.4225, lng: -123.3439 },
+                history: '建筑内常传出凄凉的钢琴声。',
+                phenomena: '没有琴弦的装饰钢琴会自动弹奏。',
+                analysis: '微弱振动激发的物理回响。',
+                icon: 'mdi:piano'
+            },
+            {
+                id: 'hatley',
+                name: '哈利城堡',
+                region: 'americas',
+                country: '加拿大',
+                timeFrame: '近现代',
+                coords: { lat: 48.4347, lng: -123.4731 },
+                history: '《X战警》取景地，传闻有前主人的亡魂守卫。',
+                phenomena: '画廊中的人物眼睛会随着游客移动。',
+                analysis: '油画绘制技法中的透视效应。',
+                icon: 'mdi:shield'
+            },
+            {
+                id: 'fort-henry',
+                name: '亨利堡',
+                region: 'americas',
+                country: '加拿大',
+                timeFrame: '远古',
+                coords: { lat: 44.2306, lng: -76.4594 },
+                history: '1812年战争时期的重要堡垒。',
+                phenomena: '地牢区域常有士兵的长靴撞击声。',
+                analysis: '石砌结构的低频传导。',
+                icon: 'mdi:pillar'
+            },
+            {
+                id: 'citadel-hill',
+                name: '哈利法克斯城堡',
+                region: 'americas',
+                country: '加拿大',
+                timeFrame: '远古',
+                coords: { lat: 44.6472, lng: -63.5806 },
+                history: '著名的"灰衣妇人"出没地。',
+                phenomena: '在升旗仪式时，队伍末尾常多出一个模糊人影。',
+                analysis: '晨雾中的逆光剪影。',
+                icon: 'mdi:flag'
+            },
+            {
+                id: 'bell-witch',
+                name: '贝尔女巫山洞',
+                region: 'americas',
+                country: '美国',
+                timeFrame: '近现代',
+                coords: { lat: 36.5894, lng: -87.0542 },
+                history: '美国历史上著名的恶灵事件。',
+                phenomena: '附近农场遭受了持续数年的骚灵骚扰。',
+                analysis: '可能与地下溶洞内的有毒气体有关。',
+                icon: 'mdi:ghost'
+            },
+            {
+                id: 'lizzie-borden',
+                name: '莉琪波登故居',
+                region: 'americas',
+                country: '美国',
+                timeFrame: '近现代',
+                coords: { lat: 41.7011, lng: -71.1558 },
+                history: '著名斧头谋杀案发生地。',
+                phenomena: '墙壁上有时会渗出类似血迹的粘稠液体。',
+                analysis: '老建筑木材腐烂出的树脂。',
+                icon: 'mdi:axe'
+            },
+            {
+                id: 'villisca-axe',
+                name: '维利斯卡斧头谋杀屋',
+                region: 'americas',
+                country: '美国',
+                timeFrame: '近现代',
+                coords: { lat: 40.9297, lng: -94.9753 },
+                history: '全家惨死的悬案地点。',
+                phenomena: '阁楼中时常滚下陈旧的小球。',
+                analysis: '风力吹动。',
+                icon: 'mdi:circle-off-outline'
+            },
+            {
+                id: 'whaley-house',
+                name: '惠利屋',
+                region: 'americas',
+                country: '美国',
+                timeFrame: '近现代',
+                coords: { lat: 32.7525, lng: -117.1950 },
+                history: '建在曾经的绞刑场上。',
+                phenomena: '走廊里能闻到雪茄味，即便全屋禁烟。',
+                analysis: '残留的嗅觉记忆或通风管串味。',
+                icon: 'mdi:pipe'
+            },
+            {
+                id: 'queen-mary',
+                name: '玛丽皇后号',
+                region: 'americas',
+                country: '美国',
+                timeFrame: '近现代',
+                coords: { lat: 33.7528, lng: -118.1903 },
+                history: '退役豪华邮轮，被称为"死亡之船"。',
+                phenomena: '游泳池区经常出现穿着旧式泳装的女孩。',
+                analysis: '金属舱壁反射产生的视觉错乱。',
+                icon: 'mdi:ship'
+            },
+            {
+                id: 'alcatraz',
+                name: '恶魔岛 (Alcatraz)',
+                region: 'americas',
+                country: '美国',
+                timeFrame: '近现代',
+                coords: { lat: 37.8267, lng: -122.4230 },
+                history: '曾经关押最危险罪犯的岛屿监狱。',
+                phenomena: '14D号禁闭室被指极其阴冷，常有咆哮声。',
+                analysis: '强劲的海风吹过通风管道的共鸣。',
+                icon: 'mdi:lock-outline'
+            },
+            // --- 2026-04-09 新增亚洲、南美、非洲事件 ---
+            // 亚洲 (45个)
+            { id: 'asia_shanghai_wukang', name: '武康大楼 (Wukang Mansion)', region: 'asia', country: '中国', timeFrame: '近现代', coords: { lat: 31.2019, lng: 121.4357 }, history: '上海著名历史建筑，曾名诺曼底公寓。', phenomena: '深夜电梯内时常出现旧式西装绅士虚影。', analysis: '历史残留磁场录入。', icon: 'mdi:office-building' },
+            { id: 'asia_beijing_chaonei', name: '朝内81号 (Chaonei 81)', region: 'asia', country: '中国', timeFrame: '近现代', coords: { lat: 39.9248, lng: 116.4278 }, history: '北京著名的荒废宅邸。', phenomena: '常有探险者报告听到尖叫声和窗户自行开合。', analysis: '风洞效应产生的声波反馈。', icon: 'mdi:home-ghost' },
+            { id: 'asia_tokyo_inokashira', name: '井之头公园 (Inokashira Park)', region: 'asia', country: '日本', timeFrame: '近现代', coords: { lat: 35.7001, lng: 139.5761 }, history: '关于情侣划船会分手的传说地。', phenomena: '深夜湖面出现类似人脸的波纹。', analysis: '水底生物群聚。', icon: 'mdi:tree' },
+            { id: 'asia_nanjing_xuanwu', name: '玄武湖残影', region: 'asia', country: '中国', timeFrame: '远古', coords: { lat: 32.0722, lng: 118.7997 }, history: '古金陵皇家园林。', phenomena: '雾天可见古代士兵列队渡湖。', analysis: '大气光学折射。', icon: 'mdi:walk' },
+            { id: 'asia_hk_high_street', name: '高街鬼屋 (High Street)', region: 'asia', country: '中国香港', timeFrame: '近现代', coords: { lat: 22.2848, lng: 114.1437 }, history: '曾为麻风病院和二战处决场。', phenomena: '走廊深处传出重物拖行声。', analysis: '建筑结构共振。', icon: 'mdi:hospital-building' },
+            { id: 'asia_seoul_gonjiam_lab', name: '昆池岩地下室', region: 'asia', country: '韩国', timeFrame: '近现代', coords: { lat: 37.3516, lng: 127.3466 }, history: '精神病院遗址深处。', phenomena: '监测仪记录到-20度的瞬时温降。', analysis: '维度泄漏点。', icon: 'mdi:flask-empty' },
+            { id: 'asia_bangkok_ghost_tower', name: '沙吞独特大楼', region: 'asia', country: '泰国', timeFrame: '近现代', coords: { lat: 13.7171, lng: 100.5153 }, history: '金融危机留下的烂尾楼。', phenomena: '顶层经常出现不明火光。', analysis: '拾荒者非法侵入。', icon: 'mdi:office-building-marker' },
+            { id: 'asia_taipei_xinhai', name: '辛亥隧道', region: 'asia', country: '中国台湾', timeFrame: '近现代', coords: { lat: 25.0084, lng: 121.5543 }, history: '穿过墓地的隧道。', phenomena: '摩托车驾驶者报告后座重量增加。', analysis: '重力场局部扭曲。', icon: 'mdi:tunnel' },
+            { id: 'asia_mumbai_towers', name: '静默之塔', region: 'asia', country: '印度', timeFrame: '远古', coords: { lat: 18.9616, lng: 72.8055 }, history: '天葬场所。', phenomena: '空气中长期存在高频电磁干扰。', analysis: '灵魂离体能量消散。', icon: 'mdi:tower-fire' },
+            { id: 'asia_kyoto_kiyomizu', name: '清水寺幽灵坡', region: 'asia', country: '日本', timeFrame: '远古', coords: { lat: 34.9949, lng: 135.7850 }, history: '千年古寺周边的阴坡。', phenomena: '下坡时感觉到被阻力推挤。', analysis: '时空缝隙。', icon: 'mdi:temple-buddhist' },
+            { id: 'asia_hanoi_prison', name: '火炉监狱 (Hoa Lo)', region: 'asia', country: '越南', timeFrame: '近现代', coords: { lat: 21.0253, lng: 105.8465 }, history: '被称为"河内希尔顿"。', phenomena: '牢房内传出多国语言的祈祷声。', analysis: '痛苦记忆录入。', icon: 'mdi:lock' },
+            { id: 'asia_baghdad_ ruins', name: '巴比伦遗址 (Babylon)', region: 'asia', country: '伊拉克', timeFrame: '远古', coords: { lat: 32.5402, lng: 44.4246 }, history: '空中花园所在地。', phenomena: '夜晚遗址中心散发微弱蓝光。', analysis: '古代能源核心残留。', icon: 'mdi:castle' },
+            { id: 'asia_jerusalem_western_wall', name: '哭墙裂隙', region: 'asia', country: '以色列', timeFrame: '远古', coords: { lat: 31.7767, lng: 35.2345 }, history: '圣殿遗迹。', phenomena: '检测到非自然频率的共鸣声。', analysis: '信仰能量汇聚。', icon: 'mdi:wall' },
+            { id: 'asia_osaka_shinsekai', name: '新世界地下街', region: 'asia', country: '日本', timeFrame: '近现代', coords: { lat: 34.6525, lng: 135.5063 }, history: '大阪老旧商业区。', phenomena: '闭店后自动扶梯逆向运行。', analysis: '系统故障或维度干预。', icon: 'mdi:escalator' },
+            { id: 'asia_manila_intramuros', name: '王城 (Intramuros)', region: 'asia', country: '菲律宾', timeFrame: '远古', coords: { lat: 14.5916, lng: 120.9753 }, history: '西班牙殖民时期遗留堡垒。', phenomena: '雨夜出现无头卫兵巡逻。', analysis: '光化学记忆。', icon: 'mdi:shield' },
+            { id: 'asia_chiang_mai_lanna', name: '兰纳古宅', region: 'asia', country: '泰国', timeFrame: '远古', coords: { lat: 18.7883, lng: 98.9853 }, history: '清迈古城历史民居。', phenomena: '室内家具在无风情况下移动。', analysis: '地磁力线异常。', icon: 'mdi:home' },
+            { id: 'asia_tibet_potala', name: '布达拉宫地宫 (Potala)', region: 'asia', country: '中国', timeFrame: '远古', coords: { lat: 29.6578, lng: 91.1172 }, history: '高原圣殿。', phenomena: '最底层检测到极低频率的吟诵。', analysis: '集体潜意识共鸣。', icon: 'mdi:temple-buddhist' },
+            { id: 'asia_goa_church', name: '圣卡耶坦教堂', region: 'asia', country: '印度', timeFrame: '远古', coords: { lat: 15.5011, lng: 73.9119 }, history: '果阿历史遗迹。', phenomena: '祭坛上方出现金色粉末悬浮。', analysis: '高维粒子沉降。', icon: 'mdi:church' },
+            { id: 'asia_tehran_palace', name: '萨阿德·阿巴德宫', region: 'asia', country: '伊朗', timeFrame: '近现代', coords: { lat: 35.8166, lng: 51.4239 }, history: '末代王朝宫殿。', phenomena: '镜房内显示的映像有数秒延迟。', analysis: '光速在局部空间减缓。', icon: 'mdi:camera-timer' },
+            { id: 'asia_dubai_ghost_village', name: '阿尔马达姆 (Al Madam)', region: 'asia', country: '阿联酋', timeFrame: '近现代', coords: { lat: 24.9654, lng: 55.7722 }, history: '被沙漠吞噬的村庄。', phenomena: '房屋在一夜之间被沙土填满又排空。', analysis: '沙流物理异常。', icon: 'mdi:home-city' },
+            { id: 'asia_bali_bedugul', name: '幽灵酒店 (Bedugul)', region: 'asia', country: '印尼', timeFrame: '近现代', coords: { lat: -8.2745, lng: 115.1611 }, history: '从未完工的度假酒店。', phenomena: '浓雾中传出举办派对的声音。', analysis: '声音的海市蜃楼。', icon: 'mdi:bed' },
+            { id: 'asia_singapore_old_changi_ext', name: '樟宜旧医院扩建区', region: 'asia', country: '新加坡', timeFrame: '近现代', coords: { lat: 1.3916, lng: 103.9786 }, history: '二战遗址。', phenomena: '检测到明显的生物电场波动。', analysis: '残留意识集合。', icon: 'mdi:hospital' },
+            { id: 'asia_kyoto_fushimi', name: '伏见稻荷暗径', region: 'asia', country: '日本', timeFrame: '远古', coords: { lat: 34.9671, lng: 135.7727 }, history: '千本鸟居深处。', phenomena: '指南针在特定狐狸像前旋转。', analysis: '强磁矿点。', icon: 'mdi:fox' },
+            { id: 'asia_xian_terracotta', name: '秦陵侧坑 (Terracotta)', region: 'asia', country: '中国', timeFrame: '远古', coords: { lat: 34.3841, lng: 109.2785 }, history: '兵马俑挖掘现场。', phenomena: '陶俑在月光下产生细微位移。', analysis: '热胀冷缩或未知的力学结构。', icon: 'mdi:account-group' },
+            { id: 'asia_macau_guia', name: '东望洋灯塔 (Guia)', region: 'asia', country: '中国澳门', timeFrame: '近现代', coords: { lat: 22.1969, lng: 113.5497 }, history: '澳门最高点之一。', phenomena: '灯光在关闭电源后依然闪烁。', analysis: '空间储能效应。', icon: 'mdi:pillar' },
+            { id: 'asia_penang_war_museum', name: '槟城战争博物馆', region: 'asia', country: '马来西亚', timeFrame: '近现代', coords: { lat: 5.3021, lng: 100.2811 }, history: '曾是英国堡垒。', phenomena: '隧道内空气湿度瞬间达到饱和并结霜。', analysis: '局部熵减。', icon: 'mdi:skull' },
+            { id: 'asia_shanghai_yanan', name: '延安路高架九龙柱', region: 'asia', country: '中国', timeFrame: '近现代', coords: { lat: 31.0727, lng: 121.4688 }, history: '上海高架立柱传说。', phenomena: '深夜龙柱周围出现金色鳞片反光。', analysis: '神秘学符号的集体暗示。', icon: 'mdi:pillar' },
+            { id: 'asia_chengdu_lan_gui_fong', name: '兰桂坊魅影', region: 'asia', country: '中国', timeFrame: '近现代', coords: { lat: 30.6472, lng: 104.0911 }, history: '成都在此区域。', phenomena: '特定摄像头中出现不属于现场的人影。', analysis: '数字干扰。', icon: 'mdi:video' },
+            { id: 'asia_kathmandu_durbar', name: '杜巴广场异响', region: 'asia', country: '尼泊尔', timeFrame: '远古', coords: { lat: 27.7042, lng: 85.3069 }, history: '地震损毁后的古建筑。', phenomena: '瓦砾堆中传出金属敲击节奏。', analysis: '地下空腔共鸣。', icon: 'mdi:music-note' },
+            { id: 'asia_nagoya_oasaka', name: '名古屋自杀桥', region: 'asia', country: '日本', timeFrame: '近现代', coords: { lat: 35.1814, lng: 136.9064 }, history: '当地某著名高架桥。', phenomena: '桥面在夜间会产生莫名的吸力。', analysis: '气流漩涡。', icon: 'mdi:bridge' },
+            { id: 'asia_fukuoka_tunnel', name: '犬鸣隧道 (Inunaki)', region: 'asia', country: '日本', timeFrame: '近现代', coords: { lat: 33.6847, lng: 130.5401 }, history: '日本著名灵异地点。', phenomena: '隧道入口处的警示牌会自动变换文字。', analysis: '强电磁场干扰视网膜。', icon: 'mdi:tunnel' },
+            { id: 'asia_busan_hospital', name: '釜山废弃疗养院', region: 'asia', country: '韩国', timeFrame: '近现代', coords: { lat: 35.1796, lng: 129.0756 }, history: '海滨荒废建筑。', phenomena: '窗户玻璃上频繁出现手印。', analysis: '盐雾结晶。', icon: 'mdi:hospital' },
+            { id: 'asia_ho_chi_minh_building', name: '顺桥广场', region: 'asia', country: '越南', timeFrame: '近现代', coords: { lat: 10.7546, lng: 106.6631 }, history: '胡志明市著名诡异大楼。', phenomena: '三栋大楼形似三炷香。', analysis: '风水格局导致的压抑感。', icon: 'mdi:office-building' },
+            { id: 'asia_phnom_penh_killing_fields', name: '杀戮战场 (Killing Fields)', region: 'asia', country: '柬埔寨', timeFrame: '近现代', coords: { lat: 11.4844, lng: 104.9019 }, history: '历史悲剧发生地。', phenomena: '草丛中检测到异常强烈的负能量信号。', analysis: '创伤记忆场。', icon: 'mdi:skull' },
+            { id: 'asia_delhi_agrari', name: '阿格里森阶井', region: 'asia', country: '印度', timeFrame: '远古', coords: { lat: 28.6272, lng: 77.2251 }, history: '德里古老水井。', phenomena: '井底散发腐败气味却检测不到有机物。', analysis: '维度空腔。', icon: 'mdi:water-well' },
+            { id: 'asia_jaipur_city_palace', name: '粉红之城影室', region: 'asia', country: '印度', timeFrame: '远古', coords: { lat: 26.9258, lng: 75.8236 }, history: '拉贾斯坦皇宫。', phenomena: '画像的眼睛会随着参观者转动。', analysis: '特殊绘画技法。', icon: 'mdi:eye' },
+            { id: 'asia_ulaanbaatar_monastery', name: '甘丹寺秘室', region: 'asia', country: '蒙古', timeFrame: '远古', coords: { lat: 47.9231, lng: 106.8951 }, history: '喇嘛教寺庙。', phenomena: '铜像内部发出持续的震动。', analysis: '次声波捕集器。', icon: 'mdi:bell' },
+            { id: 'asia_colombo_hospital', name: '科伦坡殖民病院', region: 'asia', country: '斯里兰卡', timeFrame: '近现代', coords: { lat: 6.9271, lng: 79.8612 }, history: '改造后的购物区。', phenomena: '某些更衣室镜子内可见二战护士。', analysis: '时空折叠。', icon: 'mdi:mirror' },
+            { id: 'asia_muscat_market', name: '穆特拉集市深巷', region: 'asia', country: '阿曼', timeFrame: '远古', coords: { lat: 23.6211, lng: 58.5611 }, history: '古老贸易区。', phenomena: '巷口在特定时间无法进入，仿佛有墙。', analysis: '空气动力墙。', icon: 'mdi:store' },
+            { id: 'asia_almaty_lake', name: '凯因迪湖 (Kaindy)', region: 'asia', country: '哈萨克斯坦', timeFrame: '远古', coords: { lat: 42.9841, lng: 78.4651 }, history: '水下森林。', phenomena: '水底枯树在水面上方形成全息幻影。', analysis: '水汽全息投影。', icon: 'mdi:water' },
+            { id: 'asia_dhaka_fort', name: '拉尔巴格堡', region: 'asia', country: '孟加拉国', timeFrame: '远古', coords: { lat: 23.7189, lng: 90.3881 }, history: '未完成的莫卧儿城堡。', phenomena: '地道内传出骑兵冲锋的声音。', analysis: '声学漏斗。', icon: 'mdi:shield-half-full' },
+            { id: 'asia_karachi_palace', name: '莫哈塔宫', region: 'asia', country: '巴基斯坦', timeFrame: '近现代', coords: { lat: 24.8146, lng: 67.0329 }, history: '拉贾斯坦风格宫殿。', phenomena: '灯具自行从天花板脱落又飞回。', analysis: '极化引力。', icon: 'mdi:home-variant' },
+            { id: 'asia_tashkent_metro', name: '塔什干地铁深处', region: 'asia', country: '乌兹别克斯坦', timeFrame: '近现代', coords: { lat: 41.2995, lng: 69.2401 }, history: '苏联时期防空洞。', phenomena: '隧道尽头出现不存在的列车站台。', analysis: '平行时空重叠。', icon: 'mdi:train' },
+            { id: 'asia_shiraz_mosque', name: '莫克清真寺 (Pink Mosque)', region: 'asia', country: '伊朗', timeFrame: '远古', coords: { lat: 29.6089, lng: 52.5485 }, history: '彩色玻璃闻名。', phenomena: '光影交织出的图案在某些时刻变成地图。', analysis: '古代信息编码。', icon: 'mdi:map' },
+            { id: 'asia_kunming_ghost_suburb', name: '昆明呈贡荒城', region: 'asia', country: '中国', timeFrame: '近现代', coords: { lat: 24.8911, lng: 102.7911 }, history: '曾被外媒称为鬼城。', phenomena: '空置住宅内整齐排放的餐具。', analysis: '群体性梦游。', icon: 'mdi:city' },
+
+            // 南美 (15个)
+            { id: 'sa_rio_favela', name: '里约热内卢荒废贫民窟', region: 'south_america', country: '巴西', timeFrame: '近现代', coords: { lat: -22.9068, lng: -43.1729 }, history: '被自然灾害摧毁的社区。', phenomena: '废墟中传出空灵的足球赛解说。', analysis: '电波记忆。', icon: 'mdi:soccer' },
+            { id: 'sa_buenos_aires_subway', name: '布宜诺斯艾利斯A线地铁', region: 'south_america', country: '阿根廷', timeFrame: '近现代', coords: { lat: -34.6037, lng: -58.3816 }, history: '南美最古老地铁。', phenomena: '老式木制车厢内坐着半透明乘客。', analysis: '低频振动引发幻觉。', icon: 'mdi:train-variant' },
+            { id: 'sa_lima_catacombs', name: '利马圣法兰西斯科墓穴', region: 'south_america', country: '秘鲁', timeFrame: '远古', coords: { lat: -12.0464, lng: -77.0305 }, history: '地下骨库。', phenomena: '骸骨排列方式每隔十年自行改变。', analysis: '地壳微动。', icon: 'mdi:skull-multiple' },
+            { id: 'sa_bogota_hospital', name: '波哥大疗养院', region: 'south_america', country: '哥伦比亚', timeFrame: '近现代', coords: { lat: 4.6097, lng: -74.0817 }, history: '山顶孤立医疗建筑。', phenomena: '电梯通往不存在的地下五层。', analysis: '空间折叠。', icon: 'mdi:hospital' },
+            { id: 'sa_santiago_cemetry', name: '圣地亚哥总公墓', region: 'south_america', country: '智利', timeFrame: '近现代', coords: { lat: -33.4489, lng: -70.6693 }, history: '智利最大墓地。', phenomena: '著名的"蓝裙少女"幽灵。', analysis: '静电放电。', icon: 'mdi:human-female' },
+            { id: 'sa_caracas_tower', name: '嘉法安斯大厦', region: 'south_america', country: '委内瑞拉', timeFrame: '近现代', coords: { lat: 10.4806, lng: -66.9036 }, history: '垂直贫民窟。', phenomena: '重力在楼梯间不规律增强。', analysis: '结构引力异常。', icon: 'mdi:office-building' },
+            { id: 'sa_manaus_opera', name: '亚马逊歌剧院魅影', region: 'south_america', country: '巴西', timeFrame: '近现代', coords: { lat: -3.1190, lng: -60.0217 }, history: '丛林深处的豪华建筑。', phenomena: '乐池里传出非人类乐器声。', analysis: '昆虫振翅共鸣。', icon: 'mdi:music' },
+            { id: 'sa_cusco_sacsayhuaman', name: '萨克塞华曼巨石', region: 'south_america', country: '秘鲁', timeFrame: '远古', coords: { lat: -13.5101, lng: -71.9817 }, history: '无缝衔接的印加巨石墙。', phenomena: '巨石缝隙中喷出紫色蒸汽。', analysis: '地热气孔。', icon: 'mdi:landslide' },
+            { id: 'sa_quito_panecillo', name: '帕内西略女神像', region: 'south_america', country: '厄瓜多尔', timeFrame: '近现代', coords: { lat: -0.2285, lng: -78.5186 }, history: '俯瞰古城的雕像。', phenomena: '雕像眼睛在日全食时流下血水。', analysis: '铁锈氧化。', icon: 'mdi:image-filter-hdr' },
+            { id: 'sa_montevideo_hotel', name: '蒙得维的亚塞利克酒店', region: 'south_america', country: '乌拉圭', timeFrame: '近现代', coords: { lat: -34.8833, lng: -56.1667 }, history: '河畔废弃酒店。', phenomena: '深夜传来不存在的轮船汽笛声。', analysis: '跨维度声波。', icon: 'mdi:ship' },
+            { id: 'sa_la_paz_market', name: '女巫市场 (Witches\' Market)', region: 'south_america', country: '玻利维亚', timeFrame: '远古', coords: { lat: -16.4957, lng: -68.1336 }, history: '售卖祭祀用品的街道。', phenomena: '干涸的小羊驼尸体在夜间睁眼。', analysis: '防腐剂化学反应。', icon: 'mdi:magic-staff' },
+            { id: 'sa_cartagena_fort', name: '圣费利佩堡', region: 'south_america', country: '哥伦比亚', timeFrame: '远古', coords: { lat: 10.4229, lng: -75.5412 }, history: '巨大的防御工事。', phenomena: '地底隧道出现无限循环。', analysis: '彭罗斯阶梯效应。', icon: 'mdi:fortress' },
+            { id: 'sa_guyana_jonestown', name: '琼斯镇遗址', region: 'south_america', country: '圭亚那', timeFrame: '近现代', coords: { lat: 7.7408, lng: -59.9038 }, history: '震惊世界的悲剧遗址。', phenomena: '雨林中传出整齐的口号声。', analysis: '残留意志共振。', icon: 'mdi:skull' },
+            { id: 'sa_paraguay_yparacai', name: '伊帕卡莱湖魅影', region: 'south_america', country: '巴拉圭', timeFrame: '远古', coords: { lat: -25.3000, lng: -57.3500 }, history: '传说中洗净罪孽的湖泊。', phenomena: '湖面升起形似人手的迷雾。', analysis: '特殊水汽凝结。', icon: 'mdi:waves' },
+            { id: 'sa_suriname_plant', name: '帕拉马里博种植园', region: 'south_america', country: '苏里南', timeFrame: '远古', coords: { lat: 5.8520, lng: -55.2038 }, history: '殖民地遗址。', phenomena: '糖厂烟囱在废弃50年后冒烟。', analysis: '地下沼气。', icon: 'mdi:factory' },
+            { id: 'sa_french_guiana_devils', name: '魔鬼岛 (Devil\'s Island)', region: 'south_america', country: '法属圭亚那', timeFrame: '近现代', coords: { lat: 5.2833, lng: -52.5833 }, history: '著名的流放地。', phenomena: '废弃营房内时常传出哀嚎声。', analysis: '热带雨林风声。', icon: 'mdi:island' },
+
+            // 非洲 (20个)
+            { id: 'af_cairo_baron', name: '男爵宫 (Baron Empain Palace)', region: 'africa', country: '埃及', timeFrame: '近现代', coords: { lat: 30.0867, lng: 31.3303 }, history: '受印度教启发的宫殿。', phenomena: '传闻整个宫殿会随太阳旋转。', analysis: '地基微动结合视觉错觉。', icon: 'mdi:castle' },
+            { id: 'af_nairobi_forest', name: '卡鲁拉森林异响', region: 'africa', country: '肯尼亚', timeFrame: '远古', coords: { lat: -1.2333, lng: 36.8333 }, history: '巨大的城市森林。', phenomena: '发现半径十公里的完美圆环枯萎区。', analysis: '外星地表采样。', icon: 'mdi:pine-tree' },
+            { id: 'af_cape_town_castle', name: '好望堡 (Castle of Good Hope)', region: 'africa', country: '南非', timeFrame: '远古', coords: { lat: -33.9261, lng: 18.4281 }, history: '南非最古老殖民建筑。', phenomena: '大门处经常出现一只巨大的黑色幽灵犬。', analysis: '次声波诱发视觉。', icon: 'mdi:dog' },
+            { id: 'af_lagos_market', name: '巴洛贡集市魅影', region: 'africa', country: '尼日利亚', timeFrame: '近现代', coords: { lat: 6.4526, lng: 3.3911 }, history: '极其拥挤的传统市场。', phenomena: '在人潮中经常看到全身涂满白灰的隐形人。', analysis: '由于极度拥挤产生的心理分裂。', icon: 'mdi:account-question' },
+            { id: 'af_casablanca_rick', name: '卡萨布兰卡旧港区', region: 'africa', country: '摩洛哥', timeFrame: '近现代', coords: { lat: 33.5898, lng: -7.6031 }, history: '具有历史气息的港口。', phenomena: '灯塔发出的光线在雾天会弯曲。', analysis: '时空曲率局部波动。', icon: 'mdi:lighthouse' },
+            { id: 'af_ethiopia_lalibela', name: '拉利贝拉岩石教堂', region: 'africa', country: '埃塞俄比亚', timeFrame: '远古', coords: { lat: 12.0319, lng: 39.0412 }, history: '在一整块岩石上开凿出来的教堂。', phenomena: '传说天使在夜晚帮助建造了教堂。', analysis: '高精度能量切割工具残留。', icon: 'mdi:church' },
+            { id: 'af_ghana_elmina', name: '埃尔米纳城堡', region: 'africa', country: '加纳', timeFrame: '远古', coords: { lat: 5.0844, lng: -1.3524 }, history: '著名的奴隶贸易堡垒。', phenomena: '地牢内常回荡着沉重的脚镣声。', analysis: '海风吹过特定缝隙的声学效果。', icon: 'mdi:link' },
+            { id: 'af_benin_voodoo', name: '维达不归门', region: 'africa', country: '贝宁', timeFrame: '远古', coords: { lat: 6.3241, lng: 2.1153 }, history: '伏都教圣地。', phenomena: '海浪拍打的声音被翻译成人类低语。', analysis: '高维文明信号转化。', icon: 'mdi:gate' },
+            { id: 'af_zimbabwe_ruins', name: '大津巴布韦遗址', region: 'africa', country: '津巴布韦', timeFrame: '远古', coords: { lat: -20.2675, lng: 30.9333 }, history: '非洲南部的石头城。', phenomena: '石头墙缝中会散发奇特的草药香气。', analysis: '古法祭祀残留物。', icon: 'mdi:wall' },
+            { id: 'af_tanzania_kilwa', name: '基尔瓦基斯瓦尼', region: 'africa', country: '坦桑尼亚', timeFrame: '远古', coords: { lat: -8.9525, lng: 39.5111 }, history: '斯瓦希里海岸古迹。', phenomena: '深夜港口出现古代波斯商船幻影。', analysis: '海面上方的时空海市蜃楼。', icon: 'mdi:ship' },
+            { id: 'af_mali_djenne', name: '杰内大清真寺', region: 'africa', country: '马里', timeFrame: '远古', coords: { lat: 13.9133, lng: -4.5556 }, history: '世界上最大的泥土建筑。', phenomena: '泥墙在暴雨后会显示出某种星图。', analysis: '古代建筑师的精密设计。', icon: 'mdi:star' },
+            { id: 'af_senegal_gore', name: '戈雷岛 (Goree)', region: 'africa', country: '塞内加尔', timeFrame: '远古', coords: { lat: 14.6672, lng: -17.3997 }, history: '奴隶贸易据点。', phenomena: '粉红色外墙下发现无法解释的血手印。', analysis: '微生物聚集形成特定图案。', icon: 'mdi:hand-back-left' },
+            { id: 'af_namibia_kolmanskop', name: '卡曼斯科鬼镇', region: 'africa', country: '纳米比亚', timeFrame: '近现代', coords: { lat: -26.7028, lng: 15.2319 }, history: '被沙漠掩埋的钻石矿镇。', phenomena: '沙堆中经常翻出不属于该时代的物品。', analysis: '时空交错。', icon: 'mdi:diamond-stone' },
+            { id: 'af_uganda_source', name: '尼罗河源头漩涡', region: 'africa', country: '乌干达', timeFrame: '远古', coords: { lat: 0.4194, lng: 33.1994 }, history: '维多利亚湖出水口。', phenomena: '漩涡中心检测到稳定的无线电发射源。', analysis: '未知文明的水下基地。', icon: 'mdi:vortex' },
+            { id: 'af_madagascar_stone', name: '贝马拉哈石林', region: 'africa', country: '马达加斯加', timeFrame: '远古', coords: { lat: -19.1417, lng: 44.8167 }, history: '锋利的石林。', phenomena: '石缝中存在一种能使光线扭曲的鸟。', analysis: '自适应伪装生物。', icon: 'mdi:bird' },
+            { id: 'af_algeria_tassili', name: '阿杰尔高原壁画', region: 'africa', country: '阿尔及利亚', timeFrame: '远古', coords: { lat: 24.5000, lng: 9.3333 }, history: '撒哈拉深处的史前壁画。', phenomena: '壁画上的"宇航员"会在观察者不注意时眨眼。', analysis: '纳米级自修复涂料。', icon: 'mdi:palette' },
+            { id: 'af_tunisia_matmata', name: '马特马塔穴居地', region: 'africa', country: '突尼斯', timeFrame: '远古', coords: { lat: 33.5422, lng: 9.9669 }, history: '星球大战拍摄地原型。', phenomena: '地坑住宅之间存在瞬间移动的通道。', analysis: '天然虫洞节点。', icon: 'mdi:door' },
+            { id: 'af_congo_river', name: '刚果河幽灵船', region: 'africa', country: '刚果(金)', timeFrame: '近现代', coords: { lat: -4.3250, lng: 15.3222 }, history: '深林河流。', phenomena: '一艘白色的老式蒸汽船在陆地上行驶。', analysis: '全息投影干扰。', icon: 'mdi:ship' },
+            { id: 'af_zambia_victoria', name: '维多利亚瀑布彩虹', region: 'africa', country: '赞比亚', timeFrame: '远古', coords: { lat: -17.9244, lng: 25.8572 }, history: '世界著名瀑布。', phenomena: '月虹下出现通往另一个维度的阶梯。', analysis: '多维度折射。', icon: 'mdi:stair-glass' },
+            { id: 'af_mauritania_eye', name: '撒哈拉之眼 (Eye of Sahara)', region: 'africa', country: '毛里塔尼亚', timeFrame: '远古', coords: { lat: 21.1269, lng: -11.4017 }, history: '巨大的环形结构。', phenomena: '中心区域失重状态持续数秒。', analysis: '地磁反转中心点。', icon: 'mdi:eye-outline' },
+            { id: 'sa_chile_caleuche', name: '智利 Caleuche 幽灵船', region: 'south_america', country: '智利', timeFrame: '远古', coords: { lat: -42.4822, lng: -73.7644 }, history: '奇洛埃岛传说中的幽灵船。', phenomena: '一艘灯火通明、充满音乐声的船只在雾中突然出现并消失。', analysis: '大气光学幻影与当地海洋生物发光现象的结合。', icon: 'mdi:ship' },
+            { id: 'sa_arg_vienna', name: '阿根廷 维也纳大酒店', region: 'south_america', country: '阿根廷', timeFrame: '近现代', coords: { lat: -30.9167, lng: -62.6833 }, history: '曾经的豪华酒店，传闻曾接待过二战逃亡者。', phenomena: '走廊里经常出现身穿旧式制服的幽灵服务生。', analysis: '建筑内老式电路老化引发的微弱电磁场干扰。', icon: 'mdi:hotel' },
+            { id: 'sa_peru_marcahuasi', name: '秘鲁 马卡瓦西高原', region: 'south_america', country: '秘鲁', timeFrame: '远古', coords: { lat: -11.7833, lng: -76.5833 }, history: '充满了各种形似人类和动物的巨石。', phenomena: '旅行者报告在此看到奇怪的光球并感受到时间流速异常。', analysis: '高海拔地区特殊岩石成分造成的能量聚集效应。', icon: 'mdi:mountain' },
+            { id: 'sa_col_tequendama', name: '哥伦比亚 特昆达玛瀑布酒店', region: 'south_america', country: '哥伦比亚', timeFrame: '近现代', coords: { lat: 4.5347, lng: -74.2975 }, history: '坐落在悬崖边的豪华酒店，因大量自杀事件而被称为"自杀酒店"。', phenomena: '在瀑布的薄雾中常能看到徘徊的哀伤人影。', analysis: '瀑布产生的高浓度负离子与险峻地形产生的心理压抑。', icon: 'mdi:home-flood' },
+            { id: 'cn_forbidden_city', name: '北京故宫灵异事件', region: 'china', country: '中国', timeFrame: '远古', coords: { lat: 39.9163, lng: 116.3972 }, history: '明清两代皇宫，见证了数百年权力更迭。', phenomena: '深夜常有宫女幻影走动，部分区域检测到异常磁场。', analysis: '红墙含四氧化三铁，雷雨天产生录像带效应。', icon: 'mdi:castle' },
+            { id: 'cn_shanghai_linjia', name: '上海林家宅37号', region: 'china', country: '中国', timeFrame: '近现代', coords: { lat: 31.3804, lng: 121.4737 }, history: '1950年代震惊上海的无尸灭门案。', phenomena: '建筑内传出无源水声，调查人员发现地板下深不可测。', analysis: '空间维度重叠导致的声音折射。', icon: 'mdi:home-flood' },
+            { id: 'cn_chongqing_boy', name: '重庆红衣男孩事件', region: 'china', country: '中国', timeFrame: '近现代', coords: { lat: 29.5630, lng: 106.5516 }, history: '2009年发生的离奇命案，死者穿着奇异。', phenomena: '案发现场存在复杂的邪教祭祀痕迹，监控缺失。', analysis: '超自然意志干预。', icon: 'mdi:account-alert' },
+            { id: 'cn_hk_tea', name: '香港茶餐厅灵异事件', region: 'china', country: '中国', timeFrame: '近现代', coords: { lat: 22.3193, lng: 114.1694 }, history: '新界茶餐厅收到冥币外卖订单。', phenomena: '送餐员发现住户已死亡多日，但胃内有新鲜食物。', analysis: '灵体物质化现象。', icon: 'mdi:silverware-variant' },
+            { id: 'cn_chengdu_zombie', name: '成都僵尸事件', region: 'china', country: '中国', timeFrame: '近现代', coords: { lat: 30.5728, lng: 104.0668 }, history: '1995年府南河畔的恐怖传闻。', phenomena: '发现多具身着古装的尸体具有攻击性。', analysis: '生物病毒感染引发的狂躁反应。', icon: 'mdi:biohazard' }
+        ];
+
+        // Three.js 全局变量
+        let scene, camera, renderer, globe, controls;
+        let markers = [];
+        let isRotating = true;
+
+        function filterByTimeFrame(type) {
+            const btnModern = document.getElementById('btn-modern');
+            const btnAncient = document.getElementById('btn-ancient');
+            
+            // 切换按钮样式
+            if (type === '近现代') {
+                btnModern.className = "flex-1 py-1.5 text-[10px] md:text-xs rounded bg-red-500 text-white";
+                btnAncient.className = "flex-1 py-1.5 text-[10px] md:text-xs rounded bg-gray-700 text-gray-400";
+            } else {
+                btnAncient.className = "flex-1 py-1.5 text-[10px] md:text-xs rounded bg-red-500 text-white";
+                btnModern.className = "flex-1 py-1.5 text-[10px] md:text-xs rounded bg-gray-700 text-gray-400";
+            }
+
+            // 过滤标记
+            markers.forEach(marker => {
+                const event = marker.userData;
+                let visible = false;
+                if (type === '近现代') {
+                    visible = (event.timeFrame === '近现代');
+                } else if (type === '古老传说') {
+                    visible = (event.timeFrame === '古老传说' || event.timeFrame === '远古');
+                }
+                marker.visible = visible;
+            });
+
+            // 如果当前悬停的标记被隐藏，重置它
+            if (hoveredMarker && !hoveredMarker.visible) {
+                resetMarker(hoveredMarker);
+                hoveredMarker = null;
+                document.getElementById('custom-cursor').classList.remove('hovering');
+            }
+            
+            // 切换维度时关闭详情面板，防止信息错位
+            closeDetail();
+
+            // 更新总数统计
+            const filteredCount = paranormalEvents.filter(event => {
+                if (type === '近现代') return event.timeFrame === '近现代';
+                return event.timeFrame === '古老传说' || event.timeFrame === '远古';
+            }).length;
+            document.getElementById('total-events-count').innerText = filteredCount;
+        }
+
+        function initThree() {
+            const container = document.getElementById('three-container');
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 2000);
+            camera.position.z = 350;
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, logarithmicDepthBuffer: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            container.appendChild(renderer.domElement);
+
+            // 光照增强 - 优化平衡以防止色块过曝
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+            const mainLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            mainLight.position.set(1, 1, 1);
+            scene.add(mainLight);
+            const pointLight = new THREE.PointLight(0xff3e3e, 1.2, 1000);
+            pointLight.position.set(150, 150, 150);
+            scene.add(pointLight);
+
+            // 初始化 ThreeGlobe
+            globe = new ThreeGlobe()
+                .globeImageUrl('https://unpkg.com/three-globe/example/img/earth-dark.jpg')
+                .bumpImageUrl('https://unpkg.com/three-globe/example/img/earth-topology.png')
+                .showAtmosphere(false); // 显式禁用大气层，防止出现边缘色块或光晕
+            
+            // 优化地球材质，使用 MeshPhongMaterial 特性 (ThreeGlobe 默认可能使用 MeshLambert 或 MeshPhong)
+            const globeMaterial = globe.globeMaterial();
+            globeMaterial.color = new THREE.Color(0x666666); // 降低基础亮度，增强红线的对比度
+            globeMaterial.emissive = new THREE.Color(0x000000); 
+            globeMaterial.specular = new THREE.Color(0x222222); 
+            globeMaterial.shininess = 5; 
+
+            // 调整基础球体半径为 99.8，防止与半径为 100 的地球模型产生 Z-fighting
+            const baseSphereGeo = new THREE.SphereGeometry(99.8, 64, 64);
+            const baseSphereMat = new THREE.MeshPhongMaterial({ 
+                color: 0x050507, // 使用深色背景色
+                transparent: true,
+                opacity: 0.8
+            });
+            const baseSphere = new THREE.Mesh(baseSphereGeo, baseSphereMat);
+            globe.add(baseSphere);
+
+            // 加载国家边界 - 采用更直接、可靠的 GeoJSON 数据源
+            fetch('https://unpkg.com/three-globe/example/img/ne_110m_admin_0_countries.geojson')
+                .then(res => res.json())
+                .then(countries => {
+                    globe.polygonsData(countries.features)
+                        .polygonCapColor(() => 'rgba(255, 85, 85, 0.01)')
+                        .polygonSideColor(() => 'rgba(255, 85, 85, 0.8)')
+                        .polygonAltitude(0.005)
+                        .polygonCapMaterial(new THREE.MeshPhongMaterial({
+                            color: 0xff5555,
+                            transparent: true,
+                            opacity: 0.05,
+                            wireframe: true, // 开启线框模式，增强“线框标记”感
+                            side: THREE.DoubleSide
+                        }))
+                        .polygonSideMaterial(new THREE.MeshPhongMaterial({
+                            color: 0xff5555,
+                            emissive: 0xff5555,
+                            emissiveIntensity: 3, // 极强发光，确保突出
+                            transparent: true,
+                            opacity: 0.9
+                        }));
+                }).catch(err => {
+                    console.error('GeoJSON load failed:', err);
+                    fetch('https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_110m_admin_0_countries.geojson')
+                        .then(res => res.json())
+                        .then(countries => {
+                            globe.polygonsData(countries.features)
+                                .polygonCapColor(() => 'rgba(255, 85, 85, 0.01)')
+                                .polygonSideColor(() => 'rgba(255, 85, 85, 0.8)')
+                                .polygonAltitude(0.005);
+                        });                });
+
+            scene.add(globe);
+
+            // 星空背景
+            const starGeometry = new THREE.BufferGeometry();
+            const starMaterial = new THREE.PointsMaterial({ color: 0xffffff, size: 0.7 });
+            const starVertices = [];
+            for (let i = 0; i < 6000; i++) {
+                const x = (Math.random() - 0.5) * 2000;
+                const y = (Math.random() - 0.5) * 2000;
+                const z = (Math.random() - 0.5) * 2000;
+                starVertices.push(x, y, z);
+            }
+            starGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starVertices, 3));
+            const stars = new THREE.Points(starGeometry, starMaterial);
+            scene.add(stars);
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.rotateSpeed = 0.2; // 降低旋转速度，减少灵敏度
+            controls.minDistance = 120;
+            controls.maxDistance = 500;
+
+            // 添加事件标记
+            paranormalEvents.forEach(event => {
+                addMarker(event);
+            });
+
+            animate();
+        }
+
+        // 光束位置偏移计数器
+        let markerCounter = 0;
+
+        function addMarker(event) {
+            let lat = event.coords.lat;
+            let lng = event.coords.lng;
+            
+            // 根据计数器应用固定偏移量
+            markerCounter++;
+            const offset = 0.4; // 固定偏移量
+            
+            switch (markerCounter % 5) {
+                case 1: // 第1个事件：纬度 +0.4，经度不变
+                    lat += offset;
+                    break;
+                case 2: // 第2个事件：纬度 -0.4，经度不变
+                    lat -= offset;
+                    break;
+                case 3: // 第3个事件：纬度不变，经度 +0.4
+                    lng += offset;
+                    break;
+                case 4: // 第4个事件：纬度不变，经度 -0.4
+                    lng -= offset;
+                    break;
+                case 0: // 第5个事件：纬度 +0.4，经度 +0.4
+                    lat += offset;
+                    lng += offset;
+                    break;
+            }
+            
+            const latRad = lat * Math.PI / 180;
+            const lngRad = lng * Math.PI / 180;
+            const radius = 102; // 稍微高于地球表面 (100) 以防遮挡
+
+            const x = radius * Math.cos(latRad) * Math.sin(lngRad);
+            const y = radius * Math.sin(latRad);
+            const z = radius * Math.cos(latRad) * Math.cos(lngRad);
+
+            const group = new THREE.Group();
+            group.position.set(x, y, z);
+            
+            // 计算法线向量并对齐组的朝向
+            const vector = new THREE.Vector3(x, y, z).normalize();
+            const quaternion = new THREE.Quaternion();
+            quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), vector);
+            group.quaternion.copy(quaternion);
+
+            // 1. 命中盒 (不可见) - 增大碰撞检测区域
+            const hitGeo = new THREE.CylinderGeometry(8, 8, 50, 16);
+            const hitMat = new THREE.MeshBasicMaterial({ visible: false });
+            const hitBox = new THREE.Mesh(hitGeo, hitMat);
+            hitBox.position.y = 25; 
+            group.add(hitBox);
+            
+            // 2. 核心亮线 (细小光束结构) - 简约科技风格，高度进一步缩减至 1/9 半径 (原 1/3 的三分之一)
+            const beamHeight = (100 / 9) * (0.9 + Math.random() * 0.2);
+            const coreGeo = new THREE.CylinderGeometry(0.3, 0.3, beamHeight, 8);
+            coreGeo.translate(0, beamHeight / 2, 0); // 预先偏移几何体，使底部位于原点，方便后续缩放
+            const coreMat = new THREE.MeshBasicMaterial({ 
+                color: 0xff0000, 
+                transparent: true, 
+                opacity: 0.8,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false
+            });
+            const core = new THREE.Mesh(coreGeo, coreMat);
+            core.position.y = 0; // 几何体已平移，坐标设为0
+            group.add(core);
+
+            group.userData = event;
+            globe.add(group);
+            markers.push(group);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            
+            // 地球缓慢自转
+            if (globe && isRotating) {
+                globe.rotation.y += 0.001;
+            }
+
+            // 计算动态缩放比例：基于相机距离
+            // 基准距离设为 350 (初始距离)，比例范围限制在 0.4 到 2.2 之间以应对极端缩放
+            const cameraDist = camera.position.length();
+            const dynamicScale = Math.max(0.4, Math.min(2.2, cameraDist / 350));
+
+            // 标记点动态效果 - 保持呼吸感且随缩放变化
+            markers.forEach(group => {
+                const core = group.children[1];
+                const hitBox = group.children[0]; // 命中盒
+                const time = Date.now() * 0.001;
+                const breath = 0.8 + Math.sin(time * 3) * 0.2;
+                
+                // 动态调整命中盒大小，确保在不同缩放级别下都有良好的点击体验
+                if (hitBox) {
+                    // 命中盒大小随相机距离调整，确保在放大时也能容易点击
+                    const hitScale = Math.max(0.8, Math.min(3, cameraDist / 200));
+                    hitBox.scale.set(hitScale, hitScale, hitScale);
+                }
+                
+                if (hoveredMarker !== group) {
+                    // 呼吸效果：透明度和宽度交替变化，叠加动态缩放
+                    // 放大地球(距离减小)时，dynamicScale减小，光束自动缩小
+                    core.scale.set(breath * dynamicScale, dynamicScale, breath * dynamicScale);
+                    core.material.opacity = 0.6 + Math.sin(time * 3) * 0.2;
+                } else {
+                    // 悬停时增强对比，同时保持与环境比例协调
+                    core.material.opacity = 1.0;
+                    core.scale.set(1.5 * dynamicScale, 1.2 * dynamicScale, 1.5 * dynamicScale);
+                }
+            });
+
+            renderer.render(scene, camera);
+        }
+
+        // 交互逻辑
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        let hoveredMarker = null;
+        let lockedMarker = null;
+        let isDragging = false;
+        let lastMousePos = { x: 0, y: 0 };
+        const DRAG_THRESHOLD = 5; // 拖动阈值，像素
+
+        window.addEventListener('mousemove', onMouseMove);
+        window.addEventListener('mousedown', onMouseDown);
+        window.addEventListener('mouseup', onMouseUp);
+
+        function onMouseMove(event) {
+            // 更新自定义光标位置
+            const cursor = document.getElementById('custom-cursor');
+            cursor.style.left = event.clientX + 'px';
+            cursor.style.top = event.clientY + 'px';
+
+            // 如果已经有锁定的标记，仍然可以显示tooltip，但保持locked类
+            const tooltip = document.getElementById('event-tooltip');
+            
+            // 修正 NDC 坐标转换
+            const rect = renderer.domElement.getBoundingClientRect();
+            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+
+            // 处理所有交互元素的悬停
+            const interactive = document.querySelectorAll('a, button, .cursor-pointer, .node-marker');
+            interactive.forEach(el => {
+                const elRect = el.getBoundingClientRect();
+                if (!lockedMarker && event.clientX >= elRect.left && event.clientX <= elRect.right && 
+                    event.clientY >= elRect.top && event.clientY <= elRect.bottom) {
+                    cursor.classList.add('hovering');
+                } else if (!lockedMarker) {
+                    cursor.classList.remove('hovering');
+                }
+            });
+            
+            // 提高射线检测精度
+            raycaster.params.Line.threshold = 3;
+            raycaster.params.Points.threshold = 3;
+
+            // 过滤掉不可见的标记，确保交互状态与显示状态一致
+            const visibleMarkers = markers.filter(m => m.visible);
+            const intersects = raycaster.intersectObjects(visibleMarkers, true);
+            let found = false;
+            
+            if (intersects.length > 0) {
+                // 按距离排序，优先处理最近的对象
+                intersects.sort((a, b) => a.distance - b.distance);
+                
+                for (let i = 0; i < intersects.length; i++) {
+                    const obj = intersects[i].object;
+                    let target = obj;
+                    // 向上查找标记点组 (Group)
+                    while (target && !target.userData.id) {
+                        target = target.parent;
+                    }
+
+                    if (target && target.userData && target.userData.id) {
+                        if (hoveredMarker !== target) {
+                            if (hoveredMarker && hoveredMarker !== lockedMarker) resetMarker(hoveredMarker);
+                            hoveredMarker = target;
+                            if (hoveredMarker !== lockedMarker) {
+                                highlightMarker(hoveredMarker);
+                            }
+                            if (!lockedMarker) {
+                                cursor.classList.add('hovering');
+                            }
+                        }
+                        // 显示事件名称 tooltip
+                        tooltip.textContent = target.userData.name;
+                        tooltip.style.left = (event.clientX + 10) + 'px';
+                        tooltip.style.top = (event.clientY - 30) + 'px';
+                        tooltip.style.opacity = '1';
+                        found = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!found) {
+                if (hoveredMarker && hoveredMarker !== lockedMarker) {
+                    resetMarker(hoveredMarker);
+                    hoveredMarker = null;
+                    if (!lockedMarker) {
+                        cursor.classList.remove('hovering');
+                    }
+                }
+                // 隐藏 tooltip
+                tooltip.style.opacity = '0';
+            }
+        }
+
+        function highlightMarker(markerGroup) {
+            if (!markerGroup) return;
+            const core = markerGroup.children[1];
+            if (core && core.material) {
+                core.material.color.set(0x00ffff);
+            }
+        }
+
+        function resetMarker(markerGroup) {
+            if (!markerGroup) return;
+            const core = markerGroup.children[1];
+            if (core && core.material) {
+                core.material.color.set(0xff0000);
+            }
+        }
+
+        function onMouseDown(event) {
+            // 记录鼠标按下位置
+            lastMousePos = { x: event.clientX, y: event.clientY };
+            isDragging = false;
+        }
+
+        function onMouseUp(event) {
+            // 检查是否点击在详情面板或关闭按钮上，如果是则不处理
+            if (event.target.closest('#detail-panel') || event.target.closest('button')) {
+                return;
+            }
+
+            // 检查是否有拖动
+            const dragDistance = Math.sqrt(
+                Math.pow(event.clientX - lastMousePos.x, 2) +
+                Math.pow(event.clientY - lastMousePos.y, 2)
+            );
+
+            // 如果拖动距离超过阈值，认为是拖动操作，不处理点击
+            if (dragDistance > DRAG_THRESHOLD) {
+                isDragging = true;
+                return;
+            }
+
+            // 如果没有拖动，处理点击
+            const rect = renderer.domElement.getBoundingClientRect();
+            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+            // 过滤掉不可见的标记，确保用户无法点击到被隐藏的光束
+            const visibleMarkers = markers.filter(m => m.visible);
+            const intersects = raycaster.intersectObjects(visibleMarkers, true);
+
+            if (intersects.length > 0) {
+                // 按距离排序，优先处理最近的对象
+                intersects.sort((a, b) => a.distance - b.distance);
+                
+                for (let i = 0; i < intersects.length; i++) {
+                    const obj = intersects[i].object;
+                    let target = obj;
+                    while (target && !target.userData.id) {
+                        target = target.parent;
+                    }
+
+                    if (target && target.userData && target.userData.id) {
+                        // 如果点击的是当前已锁定的事件，不做任何操作
+                        if (lockedMarker === target) {
+                            return;
+                        }
+
+                        // 如果已经有锁定的标记，先关闭当前详情面板
+                        if (lockedMarker) {
+                            closeDetail();
+                        }
+
+                        // 锁定当前标记
+                        lockedMarker = target;
+                        // 重置悬停状态
+                        if (hoveredMarker) {
+                            resetMarker(hoveredMarker);
+                            hoveredMarker = null;
+                        }
+                        // 高亮锁定的标记
+                        highlightMarker(lockedMarker);
+                        showDetail(target.userData);
+                        // 添加锁定状态的光标样式
+                        document.getElementById('custom-cursor').classList.add('locked');
+                        return;
+                    }
+                }
+            } else if (lockedMarker) {
+                // 点击空白区域时，关闭详情面板
+                closeDetail();
+            }
+        }
+
+        function showDetail(eventData) {
+            const panel = document.getElementById('detail-panel');
+            const content = document.getElementById('detail-content');
+            
+            panel.classList.remove('translate-x-full');
+            
+            content.innerHTML = `
+                <div class="mb-8">
+                    <div class="flex items-center space-x-4 mb-4">
+                        <div class="w-16 h-16 bg-red-900/30 border border-red-600 rounded-full flex items-center justify-center">
+                            <iconify-icon icon="${eventData.icon}" class="text-4xl text-red-500"></iconify-icon>
+                        </div>
+                        <div>
+                            <span class="text-xs text-cyan-400 font-mono">FILE: #${eventData.id.toUpperCase()}</span>
+                            <h2 class="text-2xl font-bold title-font text-gray-100">${eventData.name}</h2>
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                        <span class="px-2 py-1 bg-red-900/40 text-[10px] text-red-300 rounded border border-red-700/50">所属国家: ${eventData.country}</span>
+                        <span class="px-2 py-1 bg-amber-900/40 text-[10px] text-amber-300 rounded border border-amber-700/50">时间维度: ${eventData.timeFrame}</span>
+                        <span class="px-2 py-1 bg-cyan-900/40 text-[10px] text-cyan-300 rounded border border-cyan-700/50">坐标: ${eventData.coords.lat.toFixed(2)}, ${eventData.coords.lng.toFixed(2)}</span>
+                    </div>
+                </div>
+
+                <div class="space-y-8">
+                    <section>
+                        <h4 class="text-xs font-bold text-red-600 uppercase tracking-[0.2em] mb-3 flex items-center">
+                            <span class="w-8 h-[1px] bg-red-600 mr-2"></span> 历史背景
+                        </h4>
+                        <p class="text-sm leading-relaxed text-gray-400 text-justify">${eventData.history}</p>
+                    </section>
+
+                    <section>
+                        <h4 class="text-xs font-bold text-red-600 uppercase tracking-[0.2em] mb-3 flex items-center">
+                            <span class="w-8 h-[1px] bg-red-600 mr-2"></span> 灵异现象描述
+                        </h4>
+                        <div class="bg-black/40 p-4 rounded border-l-2 border-red-600 italic">
+                            <p class="text-sm leading-relaxed text-gray-300">"${eventData.phenomena}"</p>
+                        </div>
+                    </section>
+
+                    <section>
+                        <h4 class="text-xs font-bold text-red-600 uppercase tracking-[0.2em] mb-3 flex items-center">
+                            <span class="w-8 h-[1px] bg-red-600 mr-2"></span> 深度分析报告
+                        </h4>
+                        <p class="text-sm leading-relaxed text-gray-400 text-justify">${eventData.analysis}</p>
+                    </section>
+
+                    <section class="pt-6 border-t border-gray-800">
+                        <p class="text-[10px] text-gray-600 font-mono mb-4 text-center">档案最后更新于 ${new Date().toLocaleString('zh-CN')}</p>
+                        <a href="archives.html#${eventData.id}" class="block w-full py-3 bg-red-900/20 hover:bg-red-900/40 border border-red-800 text-red-500 text-xs text-center font-bold transition-all rounded">
+                            查看绝密档案
+                        </a>
+                    </section>
+                </div>
+            `;
+        }
+
+        function closeDetail() {
+            document.getElementById('detail-panel').classList.add('translate-x-full');
+            // 移除锁定状态的光标样式
+            document.getElementById('custom-cursor').classList.remove('locked');
+            // 清除锁定状态
+            if (lockedMarker) {
+                resetMarker(lockedMarker);
+                lockedMarker = null;
+            }
+        }
+
+        function resetGlobe() {
+            isRotating = true;
+            const startPos = camera.position.clone();
+            const endPos = new THREE.Vector3(0, 0, 350);
+            
+            let startTime = null;
+            const duration = 1500;
+
+            const step = (timestamp) => {
+                if (!startTime) startTime = timestamp;
+                const elapsed = timestamp - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                const ease = 1 - Math.pow(1 - progress, 3);
+                
+                camera.position.lerpVectors(startPos, endPos, ease);
+                camera.lookAt(0, 0, 0);
+                controls.target.set(0, 0, 0);
+                
+                if (progress < 1) {
+                    requestAnimationFrame(step);
+                }
+            };
+            requestAnimationFrame(step);
+        }
+
+        function focusContinent(continent) {
+            isRotating = false;
+            const targets = {
+                asia: { lat: 35, lng: 105 },
+                europe: { lat: 50, lng: 15 },
+                africa: { lat: 5, lng: 20 },
+                north_america: { lat: 40, lng: -100 },
+                south_america: { lat: -20, lng: -60 },
+                oceania: { lat: -25, lng: 135 }
+            };
+            const target = targets[continent];
+            if (!target) return;
+            
+            const latRad = target.lat * Math.PI / 180;
+            const lngRad = target.lng * Math.PI / 180;
+            const dist = 280; 
+
+            // 本地坐标（相对于地球）
+            const localX = dist * Math.cos(latRad) * Math.sin(lngRad);
+            const localY = dist * Math.sin(latRad);
+            const localZ = dist * Math.cos(latRad) * Math.cos(lngRad);
+            
+            const targetVec = new THREE.Vector3(localX, localY, localZ);
+            // 转换为世界坐标，以对应当前地球的旋转状态
+            const worldTarget = globe.localToWorld(targetVec.clone());
+            
+            const startPos = camera.position.clone();
+            const endPos = worldTarget;
+            
+            let startTime = null;
+            const duration = 1200; // 毫秒
+
+            const step = (timestamp) => {
+                if (!startTime) startTime = timestamp;
+                const elapsed = timestamp - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                
+                // 平滑减速曲线
+                const ease = 1 - Math.pow(1 - progress, 3);
+                
+                camera.position.lerpVectors(startPos, endPos, ease);
+                camera.lookAt(0, 0, 0);
+                controls.target.set(0, 0, 0);
+                
+                if (progress < 1) {
+                    requestAnimationFrame(step);
+                }
+            };
+            requestAnimationFrame(step);
+        }
+
+        window.onload = () => {
+            initThree();
+            
+            // 默认选中近现代事件
+            filterByTimeFrame('近现代');
+            
+            // 模拟日志更新
+            setInterval(() => {
+                const logs = [
+                    "检测到暗能量脉冲...",
+                    "维度壁垒厚度下降 0.02%",
+                    "收到来自坐标 [42.1, -71.2] 的干扰信号",
+                    "监控系统重载中...",
+                    "已拦截一起未授权的灵魂接入"
+                ];
+                const container = document.getElementById('log-container');
+                const log = document.createElement('div');
+                log.className = "border-l-2 border-gray-500/30 pl-3 py-1 animate-pulse";
+                log.innerHTML = `
+                    <p class="text-[10px] font-mono text-gray-500">2026年4月19日 ${new Date().toLocaleTimeString()} UTC</p>
+                    <p class="text-xs text-gray-400">${logs[Math.floor(Math.random() * logs.length)]}</p>
+                `;
+                container.prepend(log);
+                if (container.children.length > 8) container.lastChild.remove();
+                
+                // 稳定性小幅波动
+                const stabilityVal = (24.8 + (Math.random() * 0.4 - 0.2)).toFixed(1);
+                const stabBar = document.getElementById('stability-bar');
+                if (stabBar) {
+                    stabBar.style.width = stabilityVal + '%';
+                    stabBar.parentElement.previousElementSibling.children[1].innerText = stabilityVal + '%';
+                }
+            }, 5000);
+        };
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+    <!-- 右下角标识 -->
+    <div class="fixed bottom-4 right-4 text-xs text-gray-500 z-50 pointer-events-none">
+        仅供娱乐，切勿当真
+    </div>
+</body>
+</html>
